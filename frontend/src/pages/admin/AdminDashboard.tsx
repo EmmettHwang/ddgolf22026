@@ -481,7 +481,7 @@ function ClubAssignSelect({
   );
 }
 
-const APP_VERSION = 'v2.4.20260518';
+const APP_VERSION = 'v2.5.20260518';
 
 export default function AdminDashboard() {
   const [searchParams] = useSearchParams();
