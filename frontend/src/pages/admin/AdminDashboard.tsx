@@ -481,7 +481,7 @@ function ClubAssignSelect({
   );
 }
 
-const APP_VERSION = 'v2.3.20260430';
+const APP_VERSION = 'v2.4.20260518';
 
 export default function AdminDashboard() {
   const [searchParams] = useSearchParams();
@@ -717,6 +717,24 @@ export default function AdminDashboard() {
     queryKey: ['adminOrganizations'],
     queryFn: () => noticesService.getOrganizations(),
     enabled: activeTab === 'organizations',
+  });
+
+  const { data: orgSettings } = useQuery({
+    queryKey: ['orgSettings'],
+    queryFn: async () => {
+      const res = await api.get('/notices/organizations/display-settings/');
+      return res.data as { marquee_enabled: boolean };
+    },
+    enabled: activeTab === 'organizations',
+  });
+
+  const toggleMarqueeMutation = useMutation({
+    mutationFn: (enabled: boolean) =>
+      api.patch('/notices/organizations/display-settings/', { marquee_enabled: enabled }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orgSettings'] });
+      queryClient.invalidateQueries({ queryKey: ['organizationSettings'] });
+    },
   });
 
   // About Content Query
@@ -1747,25 +1765,6 @@ export default function AdminDashboard() {
               대시보드 통계를 불러올 수 없습니다. 백엔드 서버를 업데이트해 주세요.
             </div>
           )}
-          {/* Stats Cards - 회원 현황 */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-            {[
-              { label: '전체 회원', value: dashboardStats?.total_users ?? '-', color: 'bg-blue-500', icon: '👥' },
-              { label: '승인 대기', value: dashboardStats?.pending_users ?? '-', color: 'bg-red-500', icon: '⏳' },
-              { label: '클럽장', value: dashboardStats?.instructor_count ?? '-', color: 'bg-purple-500', icon: '🏅' },
-              { label: '관리자', value: dashboardStats?.admin_count ?? '-', color: 'bg-yellow-500', icon: '🔑' },
-              { label: '일반 회원', value: dashboardStats?.member_count ?? '-', color: 'bg-teal-500', icon: '👤' },
-            ].map((stat) => (
-              <div key={stat.label} className="bg-white rounded-lg shadow p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-2xl">{stat.icon}</span>
-                  <span className={`${stat.color} text-white text-xs px-2 py-0.5 rounded-full`}>{stat.label}</span>
-                </div>
-                <div className="text-3xl font-bold text-gray-800">{stat.value}</div>
-              </div>
-            ))}
-          </div>
-
           {/* System Resources */}
           {dashboardStats?.system && (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -4082,7 +4081,18 @@ export default function AdminDashboard() {
       {activeTab === 'organizations' && (
         <div className="bg-white rounded-lg shadow">
           <div className="p-4 border-b border-gray-200 flex justify-between items-center">
-            <h2 className="text-lg font-semibold">유관기관 목록</h2>
+            <div className="flex items-center gap-4">
+              <h2 className="text-lg font-semibold">유관기관 목록</h2>
+              <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={orgSettings?.marquee_enabled ?? true}
+                  onChange={(e) => toggleMarqueeMutation.mutate(e.target.checked)}
+                  className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
+                />
+                스크롤 애니메이션
+              </label>
+            </div>
             <button
               onClick={() => {
                 if (showOrgForm && !editingOrg) {

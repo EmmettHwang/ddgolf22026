@@ -136,6 +136,27 @@ class Executive(models.Model):
         return self.name
 
 
+class SiteSettings(models.Model):
+    """사이트 전역 설정 (싱글톤)"""
+    marquee_enabled = models.BooleanField('유관기관 스크롤', default=True)
+
+    class Meta:
+        verbose_name = '사이트 설정'
+        verbose_name_plural = '사이트 설정'
+
+    def __str__(self):
+        return '사이트 설정'
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def load(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+
 class Organization(models.Model):
     """유관기관"""
     name = models.CharField('기관명', max_length=100)

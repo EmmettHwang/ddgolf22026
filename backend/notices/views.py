@@ -190,7 +190,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
     pagination_class = None  # 페이지네이션 비활성화
 
     def get_permissions(self):
-        if self.action in ['list', 'retrieve']:
+        if self.action in ['list', 'retrieve', 'display_settings']:
             return [permissions.AllowAny()]
         return [permissions.IsAdminUser()]
 
@@ -200,6 +200,20 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         if not self.request.user.is_staff:
             queryset = queryset.filter(is_active=True)
         return queryset
+
+    @action(detail=False, methods=['get', 'patch'], url_path='display-settings')
+    def display_settings(self, request):
+        """유관기관 표시 설정 (marquee_enabled)"""
+        from .models import SiteSettings
+        site = SiteSettings.load()
+        if request.method == 'PATCH':
+            if not request.user.is_staff:
+                return Response({'error': '권한이 없습니다.'}, status=status.HTTP_403_FORBIDDEN)
+            if 'marquee_enabled' in request.data:
+                site.marquee_enabled = request.data['marquee_enabled']
+                site.save()
+            return Response({'marquee_enabled': site.marquee_enabled})
+        return Response({'marquee_enabled': site.marquee_enabled})
 
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAdminUser])
     def move_up(self, request, pk=None):
