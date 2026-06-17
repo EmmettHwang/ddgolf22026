@@ -286,8 +286,8 @@ export default function Messenger() {
                   </div>
                   <p className="text-sm text-gray-500">
                     {selectedRoom.member_count}명 참여 중
-                    {selectedRoom.created_by && !selectedRoom.is_public && (
-                      <> | 클럽장: {selectedRoom.created_by.username}</>
+                    {selectedRoom.club_leader && !selectedRoom.is_public && (
+                      <> | 클럽장: {selectedRoom.club_leader.username}</>
                     )}
                   </p>
                 </div>
@@ -438,7 +438,8 @@ export default function Messenger() {
                     !selectedRoom.is_public &&
                     member.id !== user?.id &&
                     member.role !== 'admin' &&
-                    member.id !== selectedRoom.created_by?.id && (
+                    member.id !== selectedRoom.created_by?.id &&
+                    member.id !== selectedRoom.club_leader?.id && (
                       <button
                         onClick={() => {
                           if (window.confirm(`${member.username}님을 퇴출하시겠습니까?`)) {

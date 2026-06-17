@@ -15,6 +15,8 @@ export interface User {
   social_provider?: string | null;
   created_at: string;
   wants_club_membership?: boolean;
+  requested_club?: number | null;
+  requested_club_name?: string | null;
   assigned_club?: number | null;
   assigned_club_name?: string | null;
 }
@@ -183,6 +185,7 @@ export interface ChatRoom {
   is_group: boolean;
   is_public: boolean;
   created_by?: User;
+  club_leader?: User | null;
   members: User[];
   messages?: Message[];
   last_message?: {
@@ -203,6 +206,20 @@ export interface Message {
   sender: User;
   content: string;
   is_read: boolean;
+  created_at: string;
+}
+
+export interface ChatBan {
+  id: number;
+  room: number;
+  room_name?: string;
+  user: User;
+  banned_by: User;
+  ban_type: 'mute' | 'kick' | 'ban';
+  ban_type_display: string;
+  reason: string;
+  expires_at: string | null;
+  is_active: boolean;
   created_at: string;
 }
 

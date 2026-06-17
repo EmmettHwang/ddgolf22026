@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { authService } from '../../services/auth';
 import { messengerService } from '../../services/messenger';
@@ -9,8 +10,9 @@ const API_BASE = import.meta.env.VITE_API_URL?.replace('/api', '') || '';
 type EditMode = 'none' | 'verify' | 'edit' | 'password';
 
 export default function Profile() {
-  const { user, fetchProfile } = useAuthStore();
+  const { user, fetchProfile, logout } = useAuthStore();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // 페이지 진입 시 최신 프로필 갱신 (assigned_club 반영)
@@ -121,6 +123,24 @@ export default function Profile() {
     onError: (err: unknown) => {
       const error = err as { response?: { data?: { error?: string } } };
       alert(error.response?.data?.error || '탈퇴 요청에 실패했습니다.');
+    },
+  });
+
+  // 계정 삭제
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteError, setDeleteError] = useState('');
+
+  const deleteAccountMutation = useMutation({
+    mutationFn: (password?: string) => authService.deleteAccount(password),
+    onSuccess: () => {
+      logout();
+      navigate('/login', { replace: true });
+      alert('계정이 삭제되었습니다.');
+    },
+    onError: (err: unknown) => {
+      const error = err as { response?: { data?: { error?: string } } };
+      setDeleteError(error.response?.data?.error || '계정 삭제에 실패했습니다.');
     },
   });
 
@@ -553,6 +573,82 @@ export default function Profile() {
           ) : (
             <div className="text-sm text-gray-500">등록된 클럽이 없습니다.</div>
           )}
+        </div>
+      )}
+
+      {/* 계정 삭제 */}
+      {user.role !== 'admin' && (
+        <div className="card mt-6 border border-red-200">
+          <h2 className="text-lg font-semibold text-red-700 mb-2">계정 삭제</h2>
+          <p className="text-sm text-gray-600 mb-4">
+            계정 삭제는 대덕구골프협회 탈퇴를 포함하며, 모든 데이터가 영구적으로 삭제되어 복구할 수 없습니다.
+          </p>
+          <button
+            onClick={() => {
+              setShowDeleteModal(true);
+              setDeletePassword('');
+              setDeleteError('');
+            }}
+            className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700"
+          >
+            계정 삭제
+          </button>
+        </div>
+      )}
+
+      {/* 계정 삭제 확인 모달 */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-bold text-red-700 mb-2">계정 삭제</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              정말로 계정을 삭제하시겠습니까?
+              <br />계정 삭제는 대덕구골프협회 탈퇴를 포함하며, 모든 데이터(프로필, 클럽 멤버십, 메시지 등)가 영구 삭제됩니다.
+            </p>
+            {!isSocialUser && (
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  비밀번호 확인
+                </label>
+                <input
+                  type="password"
+                  value={deletePassword}
+                  onChange={(e) => setDeletePassword(e.target.value)}
+                  placeholder="현재 비밀번호를 입력하세요"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent outline-none"
+                  autoFocus
+                />
+              </div>
+            )}
+            {deleteError && (
+              <p className="text-red-500 text-sm mb-3">{deleteError}</p>
+            )}
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  if (isSocialUser) {
+                    deleteAccountMutation.mutate(undefined);
+                  } else {
+                    if (!deletePassword) {
+                      setDeleteError('비밀번호를 입력해주세요.');
+                      return;
+                    }
+                    deleteAccountMutation.mutate(deletePassword);
+                  }
+                }}
+                disabled={deleteAccountMutation.isPending}
+                className="flex-1 bg-red-600 text-white py-2 rounded-lg hover:bg-red-700 disabled:opacity-50"
+              >
+                {deleteAccountMutation.isPending ? '삭제 중...' : '삭제'}
+              </button>
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="flex-1 border border-gray-300 py-2 rounded-lg hover:bg-gray-50"
+              >
+                취소
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

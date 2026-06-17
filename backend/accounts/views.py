@@ -390,6 +390,62 @@ class UserToggleClubMembershipView(APIView):
             )
 
 
+class UserDeleteView(APIView):
+    """미승인 회원 삭제 API (관리자용)"""
+    permission_classes = [permissions.IsAdminUser]
+
+    def delete(self, request, pk):
+        try:
+            user = User.objects.get(pk=pk)
+            if user.is_approved:
+                return Response(
+                    {'error': '승인된 회원은 삭제할 수 없습니다.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            user.delete()
+            return Response({'message': '회원이 삭제되었습니다.'})
+        except User.DoesNotExist:
+            return Response(
+                {'error': '사용자를 찾을 수 없습니다.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+
+class AccountDeleteView(APIView):
+    """본인 계정 삭제 API"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        password = request.data.get('password')
+
+        # 관리자 계정은 삭제 불가
+        if user.role == 'admin':
+            return Response(
+                {'error': '관리자 계정은 삭제할 수 없습니다.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 소셜 로그인 사용자가 아닌 경우 비밀번호 확인
+        if not user.social_provider:
+            if not password:
+                return Response(
+                    {'error': '비밀번호를 입력해주세요.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            if not user.check_password(password):
+                return Response(
+                    {'error': '비밀번호가 일치하지 않습니다.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+        # 클럽 멤버십 정리
+        user.chat_rooms.clear()
+
+        user.delete()
+        return Response({'message': '계정이 삭제되었습니다.'})
+
+
 class UserBlockView(APIView):
     """회원 차단 API (관리자용)"""
     permission_classes = [permissions.IsAdminUser]

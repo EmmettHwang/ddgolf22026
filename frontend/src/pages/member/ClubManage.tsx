@@ -2,10 +2,11 @@ import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '../../store/authStore';
 import { messengerService } from '../../services/messenger';
+import api from '../../services/api';
 import Loading from '../../components/common/Loading';
-import type { ClubImage, User } from '../../types';
+import type { ClubImage, User, ChatBan } from '../../types';
 
-type TabType = 'requests' | 'members' | 'info' | 'images';
+type TabType = 'requests' | 'members' | 'bans' | 'info' | 'images';
 
 export default function ClubManage() {
   const { user, fetchProfile } = useAuthStore();
@@ -173,8 +174,39 @@ export default function ClubManage() {
       alert(data.message);
     },
     onError: (error: any) => {
-      alert(error.response?.data?.error || '멤버 제거에 실패했습니다.');
+      alert(error.response?.data?.error || '멤버 삭제에 실패했습니다.');
     },
+  });
+
+  // Bans
+  const { data: activeBans, isLoading: bansLoading } = useQuery({
+    queryKey: ['clubBans', clubId],
+    queryFn: async () => {
+      const res = await api.get(`/messenger/rooms/${clubId}/bans/`);
+      return res.data as ChatBan[];
+    },
+    enabled: !!clubId && activeTab === 'bans',
+  });
+
+  const banMutation = useMutation({
+    mutationFn: (data: { user_id: number; ban_type: string; reason: string; expires_at: string | null }) =>
+      api.post(`/messenger/rooms/${clubId}/ban_user/`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['clubBans', clubId] });
+      queryClient.invalidateQueries({ queryKey: ['clubMembers'] });
+      alert('제재가 적용되었습니다.');
+    },
+    onError: () => alert('제재 적용에 실패했습니다.'),
+  });
+
+  const unbanMutation = useMutation({
+    mutationFn: (banId: number) =>
+      api.post(`/messenger/rooms/${clubId}/unban/${banId}/`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['clubBans', clubId] });
+      alert('제재가 해제되었습니다.');
+    },
+    onError: () => alert('제재 해제에 실패했습니다.'),
   });
 
   const handleIconUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -245,6 +277,7 @@ export default function ClubManage() {
         <span className="ml-2 text-gray-400 text-xs">{members.length}명</span>
       ) : undefined,
     },
+    { key: 'bans', label: '회원 제재' },
     { key: 'info', label: '클럽 정보' },
     {
       key: 'images',
@@ -418,14 +451,14 @@ export default function ClubManage() {
                       {canRemoveMember(member) && (
                         <button
                           onClick={() => {
-                            if (confirm(`${member.username}님을 클럽에서 제거하시겠습니까?`)) {
+                            if (confirm(`${member.username}님을 클럽에서 삭제하시겠습니까?`)) {
                               removeMemberMutation.mutate(member.id);
                             }
                           }}
                           disabled={removeMemberMutation.isPending}
                           className="px-3 py-1 text-xs text-red-600 border border-red-300 rounded-lg hover:bg-red-50 disabled:opacity-50"
                         >
-                          제거
+                          삭제
                         </button>
                       )}
                     </div>
@@ -435,6 +468,132 @@ export default function ClubManage() {
             ) : (
               <div className="p-8 text-center text-gray-500">
                 멤버가 없습니다.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 회원 제재 탭 */}
+      {activeTab === 'bans' && (
+        <div className="space-y-6">
+          {/* 제재 등록 */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <h3 className="text-sm font-medium text-gray-700 mb-3">제재 등록</h3>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const form = e.currentTarget;
+                const formData = new FormData(form);
+                banMutation.mutate({
+                  user_id: Number(formData.get('user_id')),
+                  ban_type: formData.get('ban_type') as string,
+                  reason: formData.get('reason') as string,
+                  expires_at: (formData.get('expires_at') as string) || null,
+                });
+                form.reset();
+              }}
+            >
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">대상 회원</label>
+                  <select
+                    name="user_id"
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500"
+                  >
+                    <option value="">선택하세요</option>
+                    {members?.filter(m => m.role !== 'admin' && m.id !== user?.id).map((m) => (
+                      <option key={m.id} value={m.id}>{m.username} ({m.email})</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">제재 유형</label>
+                  <select
+                    name="ban_type"
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500"
+                  >
+                    <option value="mute">채팅 금지</option>
+                    <option value="kick">강제 퇴장</option>
+                    <option value="ban">영구 차단</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">사유</label>
+                  <input
+                    type="text"
+                    name="reason"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">만료일 (선택)</label>
+                  <input
+                    type="datetime-local"
+                    name="expires_at"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500"
+                  />
+                </div>
+              </div>
+              <div className="mt-4">
+                <button
+                  type="submit"
+                  disabled={banMutation.isPending}
+                  className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-red-700 disabled:opacity-50"
+                >
+                  {banMutation.isPending ? '처리 중...' : '제재 적용'}
+                </button>
+              </div>
+            </form>
+          </div>
+
+          {/* 활성 제재 목록 */}
+          <div className="bg-white rounded-lg shadow">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h3 className="text-sm font-medium text-gray-700">활성 제재 목록</h3>
+            </div>
+            {bansLoading ? (
+              <Loading />
+            ) : activeBans && activeBans.length > 0 ? (
+              <div className="divide-y divide-gray-200">
+                {activeBans.map((ban) => (
+                  <div key={ban.id} className="p-4 flex justify-between items-center">
+                    <div>
+                      <div className="font-medium text-sm">{ban.user.username}</div>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className={`text-xs px-2 py-0.5 rounded ${
+                          ban.ban_type === 'mute' ? 'bg-yellow-100 text-yellow-800' :
+                          ban.ban_type === 'kick' ? 'bg-orange-100 text-orange-800' :
+                          'bg-red-100 text-red-800'
+                        }`}>
+                          {ban.ban_type_display}
+                        </span>
+                        {ban.reason && <span className="text-xs text-gray-500">{ban.reason}</span>}
+                      </div>
+                      <div className="text-xs text-gray-400 mt-1">
+                        {new Date(ban.created_at).toLocaleString()}
+                        {ban.expires_at && <> ~ {new Date(ban.expires_at).toLocaleString()}</>}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        if (confirm('이 제재를 해제하시겠습니까?')) {
+                          unbanMutation.mutate(ban.id);
+                        }
+                      }}
+                      disabled={unbanMutation.isPending}
+                      className="px-3 py-1 text-xs text-blue-600 border border-blue-300 rounded-lg hover:bg-blue-50 disabled:opacity-50"
+                    >
+                      해제
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="p-8 text-center text-gray-500">
+                활성 제재가 없습니다.
               </div>
             )}
           </div>
@@ -504,7 +663,7 @@ export default function ClubManage() {
                         disabled={setIconMutation.isPending}
                         className="px-4 py-2 border border-gray-300 text-sm rounded-lg hover:bg-gray-50 disabled:opacity-50"
                       >
-                        아이콘 제거
+                        아이콘 삭제
                       </button>
                     )}
                   </div>

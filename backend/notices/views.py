@@ -271,26 +271,49 @@ class ExecutiveViewSet(viewsets.ModelViewSet):
             return [permissions.AllowAny()]
         return [permissions.IsAdminUser()]
 
+    def perform_create(self, serializer):
+        if 'order' not in self.request.data or self.request.data.get('order') == '':
+            max_order = Executive.objects.aggregate(m=Max('order'))['m'] or 0
+            serializer.save(order=max_order + 1)
+        else:
+            serializer.save()
+
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAdminUser])
     def move_up(self, request, pk=None):
-        """임원 순서 위로"""
+        """임원 순서 위로 (같은 order 내에서도 위치 교환)"""
+        all_execs = list(Executive.objects.order_by('order', 'created_at'))
         exec_obj = self.get_object()
-        prev_obj = Executive.objects.filter(order__lt=exec_obj.order).order_by('-order').first()
-        if prev_obj:
-            exec_obj.order, prev_obj.order = prev_obj.order, exec_obj.order
-            exec_obj.save()
-            prev_obj.save()
+        idx = next((i for i, e in enumerate(all_execs) if e.id == exec_obj.id), -1)
+        if idx > 0:
+            prev_obj = all_execs[idx - 1]
+            if exec_obj.order == prev_obj.order:
+                # 같은 순위: created_at을 교환해서 순서 변경
+                Executive.objects.filter(pk=exec_obj.pk).update(created_at=prev_obj.created_at)
+                Executive.objects.filter(pk=prev_obj.pk).update(created_at=exec_obj.created_at)
+            else:
+                # 다른 순위: order 값 교환
+                exec_obj.order, prev_obj.order = prev_obj.order, exec_obj.order
+                exec_obj.save()
+                prev_obj.save()
         return Response({'message': '순서가 변경되었습니다.'})
 
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAdminUser])
     def move_down(self, request, pk=None):
-        """임원 순서 아래로"""
+        """임원 순서 아래로 (같은 order 내에서도 위치 교환)"""
+        all_execs = list(Executive.objects.order_by('order', 'created_at'))
         exec_obj = self.get_object()
-        next_obj = Executive.objects.filter(order__gt=exec_obj.order).order_by('order').first()
-        if next_obj:
-            exec_obj.order, next_obj.order = next_obj.order, exec_obj.order
-            exec_obj.save()
-            next_obj.save()
+        idx = next((i for i, e in enumerate(all_execs) if e.id == exec_obj.id), -1)
+        if 0 <= idx < len(all_execs) - 1:
+            next_obj = all_execs[idx + 1]
+            if exec_obj.order == next_obj.order:
+                # 같은 순위: created_at을 교환해서 순서 변경
+                Executive.objects.filter(pk=exec_obj.pk).update(created_at=next_obj.created_at)
+                Executive.objects.filter(pk=next_obj.pk).update(created_at=exec_obj.created_at)
+            else:
+                # 다른 순위: order 값 교환
+                exec_obj.order, next_obj.order = next_obj.order, exec_obj.order
+                exec_obj.save()
+                next_obj.save()
         return Response({'message': '순서가 변경되었습니다.'})
 
 

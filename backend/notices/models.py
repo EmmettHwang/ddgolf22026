@@ -124,7 +124,7 @@ class Executive(models.Model):
     phone = models.CharField('전화번호', max_length=20, blank=True, default='')
     greeting = models.TextField('인사말', blank=True, default='')
     photo = models.ImageField('프로필 사진', upload_to='executives/', blank=True, null=True)
-    order = models.PositiveIntegerField('순서', default=0)
+    order = models.PositiveIntegerField('순서', default=1)
     created_at = models.DateTimeField('등록일', auto_now_add=True)
 
     class Meta:

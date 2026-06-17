@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../../services/api';
-import type { User, Notice, Album, Photo, ChatRoom, Message, Banner, Organization, SmsLog, History } from '../../types';
+import type { User, Notice, Album, Photo, ChatRoom, Message, Banner, Organization, SmsLog, History, ChatBan } from '../../types';
 import Loading from '../../components/common/Loading';
 import { noticesService } from '../../services/notices';
 import { smsService } from '../../services/sms';
@@ -337,20 +337,7 @@ function FileDropZone({
   );
 }
 
-type TabType = 'dashboard' | 'members' | 'about' | 'notices' | 'schedule' | 'gallery' | 'messenger' | 'banners' | 'organizations' | 'documents' | 'sms';
-
-interface ChatBan {
-  id: number;
-  room: number;
-  user: User;
-  banned_by: User;
-  ban_type: 'mute' | 'kick' | 'ban';
-  ban_type_display: string;
-  reason: string;
-  expires_at: string | null;
-  is_active: boolean;
-  created_at: string;
-}
+type TabType = 'dashboard' | 'members' | 'about' | 'notices' | 'schedule' | 'gallery' | 'messenger' | 'bans' | 'banners' | 'organizations' | 'documents' | 'sms';
 
 function ClubAssignSelect({
   currentClubId,
@@ -481,7 +468,7 @@ function ClubAssignSelect({
   );
 }
 
-const APP_VERSION = 'v2.5.20260518';
+const APP_VERSION = 'v3.1.20260617.1900';
 
 export default function AdminDashboard() {
   const [searchParams] = useSearchParams();
@@ -517,16 +504,20 @@ export default function AdminDashboard() {
   const [bannerImage, setBannerImage] = useState<File[]>([]);
   const [orgLogo, setOrgLogo] = useState<File[]>([]);
   const [managingEventId, setManagingEventId] = useState<number | null>(null);
+  const [clubMemberSearch, setClubMemberSearch] = useState('');
   const [showClubModal, setShowClubModal] = useState(false);
   const [pendingApprovalUser, setPendingApprovalUser] = useState<User | null>(null);
   const [pendingApprovalRole, setPendingApprovalRole] = useState<string>('member');
   const [selectedClubId, setSelectedClubId] = useState<number | null>(null);
   const [aboutGreetingImage, setAboutGreetingImage] = useState<File[]>([]);
   const [showExecutiveForm, setShowExecutiveForm] = useState(false);
-  const [editingExecutive, setEditingExecutive] = useState<{ id: number; name: string; phone: string; greeting: string; photo: string | null } | null>(null);
+  const [editingExecutive, setEditingExecutive] = useState<{ id: number; name: string; phone: string; greeting: string; photo: string | null; order: number } | null>(null);
   const [executivePhoto, setExecutivePhoto] = useState<File[]>([]);
+  const [executiveName, setExecutiveName] = useState('');
+  const [executiveGreeting, setExecutiveGreeting] = useState('');
   const [executivePhonePrefix, setExecutivePhonePrefix] = useState('042');
   const [executivePhoneNumber, setExecutivePhoneNumber] = useState('');
+  const [executiveOrder, setExecutiveOrder] = useState<string>('');
   const [editingClubId, setEditingClubId] = useState<number | null>(null);
   const [editingClubName, setEditingClubName] = useState('');
   const [showCreateClubForm, setShowCreateClubForm] = useState(false);
@@ -542,6 +533,10 @@ export default function AdminDashboard() {
   const [editingHistory, setEditingHistory] = useState<History | null>(null);
   const [popupImage, setPopupImage] = useState<File[]>([]);
   const [isPopupChecked, setIsPopupChecked] = useState(false);
+  // Bans tab state
+  const [banTabRoom, setBanTabRoom] = useState<number | ''>('');
+  const [banListFilter, setBanListFilter] = useState<'all' | 'club'>('all');
+  const [banMemberSearch, setBanMemberSearch] = useState('');
   // Documents state
   const [showDocCategoryForm, setShowDocCategoryForm] = useState(false);
   const [editingDocCategory, setEditingDocCategory] = useState<{ id: number; name: string; order: number } | null>(null);
@@ -692,7 +687,7 @@ export default function AdminDashboard() {
       }
       return response.data as ChatRoom[];
     },
-    enabled: activeTab === 'messenger',
+    enabled: activeTab === 'messenger' || activeTab === 'bans',
   });
 
   // Active Bans Query
@@ -702,7 +697,7 @@ export default function AdminDashboard() {
       const response = await api.get('/messenger/bans/active/');
       return response.data as ChatBan[];
     },
-    enabled: activeTab === 'messenger',
+    enabled: activeTab === 'messenger' || activeTab === 'bans',
   });
 
   // Banners Query
@@ -956,6 +951,16 @@ export default function AdminDashboard() {
     enabled: activeTab === 'messenger' && selectedRoom !== null,
   });
 
+  // Bans Tab - 선택된 클럽의 멤버 목록
+  const { data: banTabMembers } = useQuery({
+    queryKey: ['banTabMembers', banTabRoom],
+    queryFn: async () => {
+      const response = await api.get(`/messenger/rooms/${banTabRoom}/members_list/`);
+      return response.data as User[];
+    },
+    enabled: activeTab === 'bans' && banTabRoom !== '',
+  });
+
   // Member Mutations
   const approveMutation = useMutation({
     mutationFn: ({ userId, role, assignedClub }: { userId: number; role?: string; assignedClub?: number }) =>
@@ -984,6 +989,15 @@ export default function AdminDashboard() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['adminUsers'] });
       alert('차단이 해제되었습니다.');
+    },
+  });
+
+  const deleteUserMutation = useMutation({
+    mutationFn: (userId: number) => api.delete(`/accounts/users/${userId}/delete/`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['adminUsers'] });
+      queryClient.invalidateQueries({ queryKey: ['adminNotifications'] });
+      alert('회원이 삭제되었습니다.');
     },
   });
 
@@ -1284,6 +1298,42 @@ export default function AdminDashboard() {
     },
   });
 
+  // Club Member Search Query
+  const { data: clubSearchResults } = useQuery({
+    queryKey: ['clubAvailableUsers', selectedRoom, clubMemberSearch],
+    queryFn: async () => {
+      const response = await api.get(`/messenger/rooms/${selectedRoom}/available_users/`, {
+        params: { search: clubMemberSearch },
+      });
+      return response.data as User[];
+    },
+    enabled: activeTab === 'messenger' && selectedRoom !== null && clubMemberSearch.length >= 1,
+  });
+
+  // Club Remove Member Mutation (admin)
+  const kickMemberMutation = useMutation({
+    mutationFn: ({ roomId, userId }: { roomId: number; userId: number }) =>
+      api.post(`/messenger/rooms/${roomId}/admin_remove_member/`, { user_id: userId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['adminRoomMembers', selectedRoom] });
+      queryClient.invalidateQueries({ queryKey: ['adminChatRooms'] });
+      queryClient.invalidateQueries({ queryKey: ['adminUsers'] });
+    },
+  });
+
+  // Club Add Member Mutation (admin)
+  const inviteMemberMutation = useMutation({
+    mutationFn: ({ roomId, userId }: { roomId: number; userId: number }) =>
+      api.post(`/messenger/rooms/${roomId}/admin_add_member/`, { user_id: userId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['adminRoomMembers', selectedRoom] });
+      queryClient.invalidateQueries({ queryKey: ['adminChatRooms'] });
+      queryClient.invalidateQueries({ queryKey: ['clubAvailableUsers'] });
+      queryClient.invalidateQueries({ queryKey: ['adminUsers'] });
+      setClubMemberSearch('');
+    },
+  });
+
   // Create Club Mutation
   const createClubMutation = useMutation({
     mutationFn: (data: { name: string; description: string }) =>
@@ -1388,6 +1438,9 @@ export default function AdminDashboard() {
       setShowExecutiveForm(false);
       setExecutivePhoto([]);
       setEditingExecutive(null);
+      setExecutiveName('');
+      setExecutiveGreeting('');
+      setExecutiveOrder('');
       alert('임원이 등록되었습니다.');
     },
   });
@@ -1399,6 +1452,9 @@ export default function AdminDashboard() {
       setShowExecutiveForm(false);
       setExecutivePhoto([]);
       setEditingExecutive(null);
+      setExecutiveName('');
+      setExecutiveGreeting('');
+      setExecutiveOrder('');
       alert('임원 정보가 수정되었습니다.');
     },
   });
@@ -1529,6 +1585,7 @@ export default function AdminDashboard() {
     if (user.wants_club_membership) {
       setPendingApprovalUser(user);
       setPendingApprovalRole(role);
+      setSelectedClubId(user.requested_club || null);
       setShowClubModal(true);
     } else {
       if (window.confirm(`${user.username}님을 ${role === 'instructor' ? '클럽장' : '일반 회원'}(으)로 승인하시겠습니까?`)) {
@@ -1727,6 +1784,7 @@ export default function AdminDashboard() {
         <nav className="-mb-px flex overflow-x-auto gap-x-4 scrollbar-hide">
           {[
             { key: 'members', label: '회원 관리', badge: adminNoti?.pending_users || 0 },
+            { key: 'bans', label: '회원 제재', badge: activeBans?.length || 0 },
             { key: 'about', label: '협회소개 관리', badge: 0 },
             { key: 'notices', label: '공지사항 관리', badge: 0 },
             { key: 'schedule', label: '경기일정 관리', badge: adminNoti?.pending_participants || 0 },
@@ -1994,7 +2052,7 @@ export default function AdminDashboard() {
                           </span>
                           {user.wants_club_membership && (
                             <span className="ml-1 inline-flex px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
-                              클럽 희망
+                              {user.requested_club_name || '클럽 희망'}
                             </span>
                           )}
                         </td>
@@ -2023,7 +2081,7 @@ export default function AdminDashboard() {
                             <ClubAssignSelect
                               currentClubId={user.assigned_club || null}
                               currentClubName={user.assigned_club_name || null}
-                              clubs={allChatRooms?.filter((r) => !r.is_public) || []}
+                              clubs={allChatRooms || []}
                               disabled={assignClubMutation.isPending}
                               onAssign={(clubId) => assignClubMutation.mutate({ userId: user.id, clubId })}
                             />
@@ -2031,7 +2089,7 @@ export default function AdminDashboard() {
                             <span className="text-xs text-gray-400">-</span>
                           ) : (
                             <span className={`inline-flex px-2 py-0.5 text-xs rounded-full ${user.wants_club_membership ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-500'}`}>
-                              {user.wants_club_membership ? '클럽 희망' : '-'}
+                              {user.requested_club_name || (user.wants_club_membership ? '클럽 희망' : '-')}
                             </span>
                           )}
                         </td>
@@ -2056,6 +2114,17 @@ export default function AdminDashboard() {
                                     회원으로 승인
                                   </button>
                                 )}
+                                <button
+                                  onClick={() => {
+                                    if (window.confirm(`${user.username}님의 가입 신청을 삭제하시겠습니까?`)) {
+                                      deleteUserMutation.mutate(user.id);
+                                    }
+                                  }}
+                                  className="text-red-600 hover:text-red-700 text-sm font-medium cursor-pointer"
+                                  disabled={deleteUserMutation.isPending}
+                                >
+                                  삭제
+                                </button>
                               </>
                             )}
                             {user.role !== 'admin' && user.is_approved && (
@@ -2214,14 +2283,17 @@ export default function AdminDashboard() {
           {/* 협회임원 관리 */}
           <div className="bg-white rounded-lg shadow">
             <div className="p-4 border-b border-gray-200 flex justify-between items-center">
-              <h2 className="text-lg font-semibold">협회임원 관리</h2>
+              <h2 className="text-lg font-semibold">협회임원 관리 {executives && executives.length > 0 && <span className="text-sm font-normal text-gray-500">({executives.length}명)</span>}</h2>
               <button
                 onClick={() => {
                   setEditingExecutive(null);
                   setShowExecutiveForm(!showExecutiveForm);
+                  setExecutiveName('');
+                  setExecutiveGreeting('');
                   setExecutivePhoto([]);
                   setExecutivePhonePrefix('042');
                   setExecutivePhoneNumber('');
+                  setExecutiveOrder('');
                 }}
                 className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-green-700"
               >
@@ -2234,14 +2306,16 @@ export default function AdminDashboard() {
                 ref={executiveFormRef}
                 onSubmit={(e) => {
                   e.preventDefault();
-                  const form = e.currentTarget;
                   const formData = new FormData();
-                  formData.append('name', form.querySelector<HTMLInputElement>('[name="exec_name"]')?.value || '');
+                  formData.append('name', executiveName);
                   const phone = executivePhoneNumber ? `${executivePhonePrefix}-${executivePhoneNumber}` : '';
                   formData.append('phone', phone);
-                  formData.append('greeting', form.querySelector<HTMLTextAreaElement>('[name="exec_greeting"]')?.value || '');
+                  formData.append('greeting', executiveGreeting);
                   if (executivePhoto.length > 0) {
                     formData.append('photo', executivePhoto[0]);
+                  }
+                  if (executiveOrder !== '') {
+                    formData.append('order', executiveOrder);
                   }
                   if (editingExecutive) {
                     updateExecutiveMutation.mutate({ id: editingExecutive.id, data: formData });
@@ -2251,14 +2325,14 @@ export default function AdminDashboard() {
                 }}
                 className="p-4 border-b border-gray-200 bg-gray-50"
               >
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">이름 *</label>
                     <input
                       type="text"
-                      name="exec_name"
                       required
-                      defaultValue={editingExecutive?.name || ''}
+                      value={executiveName}
+                      onChange={(e) => setExecutiveName(e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500"
                     />
                   </div>
@@ -2283,17 +2357,28 @@ export default function AdminDashboard() {
                       />
                     </div>
                   </div>
-                  <div className="md:col-span-2">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">배치순서</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={executiveOrder}
+                      onChange={(e) => setExecutiveOrder(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500"
+                      placeholder="자동 (중복 가능)"
+                    />
+                  </div>
+                  <div className="md:col-span-3">
                     <label className="block text-sm font-medium text-gray-700 mb-1">인사말</label>
                     <textarea
-                      name="exec_greeting"
-                      rows={3}
-                      defaultValue={editingExecutive?.greeting || ''}
+                      rows={2}
+                      value={executiveGreeting}
+                      onChange={(e) => setExecutiveGreeting(e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500"
                       placeholder="임원 인사말을 입력하세요."
                     />
                   </div>
-                  <div className="md:col-span-2">
+                  <div className="md:col-span-3">
                     <FileDropZone
                       label="프로필 사진"
 
@@ -2314,69 +2399,66 @@ export default function AdminDashboard() {
               </form>
             )}
 
-            <div className="divide-y divide-gray-200">
+            <div className="p-3">
               {executives && executives.length > 0 ? (
-                executives.map((exec) => (
-                  <div key={exec.id} className="p-4 flex items-center gap-4">
-                    {exec.photo ? (
-                      <img src={exec.photo} alt={exec.name} className="w-12 h-12 rounded-full object-cover flex-shrink-0" />
-                    ) : (
-                      <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center flex-shrink-0">
-                        <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                        </svg>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
+                  {executives.map((exec) => (
+                    <div key={exec.id} className="border border-gray-200 rounded-lg p-2 flex flex-col items-center text-center group hover:bg-gray-50 relative">
+                      <span className="absolute top-1 left-1.5 text-[10px] text-gray-300">{exec.order}</span>
+                      {exec.photo ? (
+                        <img src={exec.photo} alt={exec.name} className="w-10 h-10 rounded-full object-cover mb-1" />
+                      ) : (
+                        <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center mb-1">
+                          <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                          </svg>
+                        </div>
+                      )}
+                      <div className="text-xs font-medium truncate w-full">{exec.name}</div>
+                      {exec.phone && <div className="text-[10px] text-gray-400 truncate w-full">{exec.phone}</div>}
+                      <div className="flex gap-0.5 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={() => moveExecutiveUpMutation.mutate(exec.id)}
+                          className="px-1.5 py-0.5 text-[10px] bg-gray-100 text-gray-600 hover:bg-gray-200 rounded"
+                          title="위로"
+                        >&uarr;</button>
+                        <button
+                          onClick={() => moveExecutiveDownMutation.mutate(exec.id)}
+                          className="px-1.5 py-0.5 text-[10px] bg-gray-100 text-gray-600 hover:bg-gray-200 rounded"
+                          title="아래로"
+                        >&darr;</button>
+                        <button
+                          onClick={() => {
+                            setEditingExecutive(exec);
+                            setShowExecutiveForm(true);
+                            setExecutiveName(exec.name);
+                            setExecutiveGreeting(exec.greeting || '');
+                            setExecutivePhoto([]);
+                            setExecutiveOrder(exec.order.toString());
+                            if (exec.phone) {
+                              const parsed = parsePhoneNumber(exec.phone);
+                              setExecutivePhonePrefix(parsed.prefix);
+                              setExecutivePhoneNumber(parsed.suffix);
+                            } else {
+                              setExecutivePhonePrefix('042');
+                              setExecutivePhoneNumber('');
+                            }
+                            setTimeout(() => executiveFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
+                          }}
+                          className="px-1.5 py-0.5 text-[10px] bg-blue-100 text-blue-700 hover:bg-blue-200 rounded"
+                        >수정</button>
+                        <button
+                          onClick={() => {
+                            if (window.confirm(`"${exec.name}" 임원을 삭제하시겠습니까?`)) {
+                              deleteExecutiveMutation.mutate(exec.id);
+                            }
+                          }}
+                          className="px-1.5 py-0.5 text-[10px] bg-red-100 text-red-700 hover:bg-red-200 rounded"
+                        >삭제</button>
                       </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium">{exec.name}</div>
-                      {exec.phone && <div className="text-sm text-gray-500">{exec.phone}</div>}
-                      {exec.greeting && <div className="text-sm text-gray-400 truncate">{exec.greeting}</div>}
                     </div>
-                    <div className="flex gap-1 flex-shrink-0">
-                      <button
-                        onClick={() => moveExecutiveUpMutation.mutate(exec.id)}
-                        className="px-2 py-1 text-xs bg-gray-100 text-gray-600 hover:bg-gray-200 rounded"
-                      >
-                        &uarr;
-                      </button>
-                      <button
-                        onClick={() => moveExecutiveDownMutation.mutate(exec.id)}
-                        className="px-2 py-1 text-xs bg-gray-100 text-gray-600 hover:bg-gray-200 rounded"
-                      >
-                        &darr;
-                      </button>
-                      <button
-                        onClick={() => {
-                          setEditingExecutive(exec);
-                          setShowExecutiveForm(true);
-                          setExecutivePhoto([]);
-                          if (exec.phone) {
-                            const parsed = parsePhoneNumber(exec.phone);
-                            setExecutivePhonePrefix(parsed.prefix);
-                            setExecutivePhoneNumber(parsed.suffix);
-                          } else {
-                            setExecutivePhonePrefix('042');
-                            setExecutivePhoneNumber('');
-                          }
-                          setTimeout(() => executiveFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
-                        }}
-                        className="px-2 py-1 text-xs bg-blue-100 text-blue-700 hover:bg-blue-200 rounded"
-                      >
-                        수정
-                      </button>
-                      <button
-                        onClick={() => {
-                          if (window.confirm(`"${exec.name}" 임원을 삭제하시겠습니까?`)) {
-                            deleteExecutiveMutation.mutate(exec.id);
-                          }
-                        }}
-                        className="px-2 py-1 text-xs bg-red-100 text-red-700 hover:bg-red-200 rounded"
-                      >
-                        삭제
-                      </button>
-                    </div>
-                  </div>
-                ))
+                  ))}
+                </div>
               ) : (
                 <div className="p-8 text-center text-gray-500">등록된 임원이 없습니다.</div>
               )}
@@ -3616,29 +3698,26 @@ export default function AdminDashboard() {
                         >
                           수정
                         </button>
-                        {room.is_public ? (
-                          <button
-                            onClick={() => {
-                              if (window.confirm(`"${room.name}" 클럽의 모든 메시지를 삭제하시겠습니까?\n클럽은 유지됩니다.`)) {
-                                clearMessagesMutation.mutate(room.id);
-                              }
-                            }}
-                            className="px-2 py-1 text-xs bg-orange-100 text-orange-700 hover:bg-orange-200 rounded"
-                          >
-                            기록 삭제
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => {
-                              if (window.confirm(`"${room.name}" 클럽을 삭제하시겠습니까?\n모든 메시지가 함께 삭제됩니다.`)) {
-                                deleteChatRoomMutation.mutate(room.id);
-                              }
-                            }}
-                            className="px-2 py-1 text-xs bg-red-100 text-red-700 hover:bg-red-200 rounded"
-                          >
-                            삭제
-                          </button>
-                        )}
+                        <button
+                          onClick={() => {
+                            if (window.confirm(`"${room.name}" 클럽의 모든 메시지를 삭제하시겠습니까?\n클럽은 유지됩니다.`)) {
+                              clearMessagesMutation.mutate(room.id);
+                            }
+                          }}
+                          className="px-2 py-1 text-xs bg-orange-100 text-orange-700 hover:bg-orange-200 rounded"
+                        >
+                          기록 삭제
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (window.confirm(`"${room.name}" 클럽을 삭제하시겠습니까?\n모든 메시지가 함께 삭제됩니다.`)) {
+                              deleteChatRoomMutation.mutate(room.id);
+                            }
+                          }}
+                          className="px-2 py-1 text-xs bg-red-100 text-red-700 hover:bg-red-200 rounded"
+                        >
+                          삭제
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -3830,10 +3909,106 @@ export default function AdminDashboard() {
                 );
               })()}
 
-              {/* 클럽 내용 보기 */}
+              {/* 소속 회원 관리 */}
               <div className="lg:col-span-2 bg-white rounded-lg shadow">
                 <div className="p-4 border-b border-gray-200">
-                  <h2 className="text-lg font-semibold">클럽 내용 - {chatRooms?.find((r) => r.id === selectedRoom)?.name}</h2>
+                  <h2 className="text-lg font-semibold">
+                    소속 회원 - {chatRooms?.find((r) => r.id === selectedRoom)?.name}
+                    {roomMembersList && <span className="text-sm font-normal text-gray-500 ml-2">({roomMembersList.length}명)</span>}
+                  </h2>
+                </div>
+                <div className="p-4">
+                  {/* 회원 추가 검색 */}
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">회원 추가</label>
+                    <input
+                      type="text"
+                      value={clubMemberSearch}
+                      onChange={(e) => setClubMemberSearch(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500"
+                      placeholder="이름, 이메일로 검색하여 추가"
+                    />
+                    {clubMemberSearch && clubSearchResults && clubSearchResults.length > 0 && (
+                      <div className="mt-1 border border-gray-200 rounded-lg max-h-40 overflow-y-auto">
+                        {clubSearchResults.map((u) => (
+                          <button
+                            key={u.id}
+                            onClick={() => {
+                              if (window.confirm(`${u.username}님을 이 클럽에 추가하시겠습니까?`)) {
+                                inviteMemberMutation.mutate({ roomId: selectedRoom!, userId: u.id });
+                              }
+                            }}
+                            className="w-full flex items-center justify-between px-3 py-2 hover:bg-green-50 text-left text-sm border-b last:border-b-0"
+                          >
+                            <span>{u.username} <span className="text-gray-400">({u.email})</span></span>
+                            <span className="text-green-600 text-xs font-medium">추가</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {clubMemberSearch && clubSearchResults && clubSearchResults.length === 0 && (
+                      <p className="mt-1 text-xs text-gray-400">검색 결과가 없습니다.</p>
+                    )}
+                  </div>
+
+                  {/* 회원 목록 */}
+                  {roomMembersList && roomMembersList.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">이름</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">이메일</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">전화번호</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">역할</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">관리</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200">
+                          {roomMembersList.map((member) => (
+                            <tr key={member.id}>
+                              <td className="px-4 py-2 text-sm font-medium whitespace-nowrap">{member.username}</td>
+                              <td className="px-4 py-2 text-sm text-gray-500 whitespace-nowrap">{member.email}</td>
+                              <td className="px-4 py-2 text-sm text-gray-500 whitespace-nowrap">{member.phone || '-'}</td>
+                              <td className="px-4 py-2 text-sm whitespace-nowrap">
+                                <span className={`inline-flex px-2 py-0.5 text-xs rounded-full ${
+                                  member.role === 'admin' ? 'bg-red-100 text-red-800' :
+                                  member.role === 'instructor' ? 'bg-purple-100 text-purple-800' :
+                                  'bg-blue-100 text-blue-800'
+                                }`}>
+                                  {member.role_display || member.role}
+                                </span>
+                              </td>
+                              <td className="px-4 py-2 text-sm whitespace-nowrap">
+                                {member.role !== 'admin' && (
+                                  <button
+                                    onClick={() => {
+                                      if (window.confirm(`${member.username}님을 이 클럽에서 삭제하시겠습니까?`)) {
+                                        kickMemberMutation.mutate({ roomId: selectedRoom!, userId: member.id });
+                                      }
+                                    }}
+                                    disabled={kickMemberMutation.isPending}
+                                    className="text-red-600 hover:text-red-700 text-xs font-medium"
+                                  >
+                                    삭제
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="text-center text-gray-500 py-4 text-sm">소속 회원이 없습니다.</div>
+                  )}
+                </div>
+              </div>
+
+              {/* 채팅 기록 */}
+              <div className="lg:col-span-2 bg-white rounded-lg shadow">
+                <div className="p-4 border-b border-gray-200">
+                  <h2 className="text-lg font-semibold">채팅 기록 - {chatRooms?.find((r) => r.id === selectedRoom)?.name}</h2>
                 </div>
                 <div className="p-4 max-h-96 overflow-y-auto bg-gray-50">
                   {messagesLoading ? (
@@ -3871,6 +4046,165 @@ export default function AdminDashboard() {
               </div>
             </>
           )}
+        </div>
+      )}
+
+      {/* Bans Tab - 회원 제재 관리 */}
+      {activeTab === 'bans' && (
+        <div className="space-y-6">
+          {/* 제재 등록 */}
+          <div className="bg-white rounded-lg shadow">
+            <div className="p-4 border-b border-gray-200">
+              <h2 className="text-lg font-semibold">제재 등록</h2>
+            </div>
+            <div className="p-4">
+              {/* 회원 이름 검색 */}
+              <div className="mb-4 relative">
+                <label className="block text-sm font-medium text-gray-700 mb-1">회원 검색</label>
+                <input
+                  type="text"
+                  value={banMemberSearch}
+                  onChange={(e) => setBanMemberSearch(e.target.value)}
+                  placeholder="회원 이름으로 검색하면 소속 클럽을 확인할 수 있습니다"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500"
+                />
+                {banMemberSearch.length >= 1 && (() => {
+                  const matched = users?.filter((u) =>
+                    u.role !== 'admin' && u.is_approved &&
+                    (u.username.toLowerCase().includes(banMemberSearch.toLowerCase()) ||
+                     u.email.toLowerCase().includes(banMemberSearch.toLowerCase()))
+                  ) || [];
+                  return matched.length > 0 ? (
+                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                      {matched.map((u) => (
+                        <button
+                          key={u.id}
+                          type="button"
+                          onClick={() => {
+                            if (u.assigned_club) {
+                              setBanTabRoom(u.assigned_club);
+                            }
+                            setBanMemberSearch('');
+                          }}
+                          className="w-full text-left px-3 py-2 hover:bg-gray-100 text-sm flex justify-between items-center"
+                        >
+                          <span>{u.username} ({u.email})</span>
+                          <span className={`text-xs px-2 py-0.5 rounded ${u.assigned_club_name ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                            {u.assigned_club_name || '클럽 미배정'}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg p-3 text-sm text-gray-500">
+                      검색 결과가 없습니다.
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* 클럽 선택 */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">클럽 선택</label>
+                <select
+                  value={banTabRoom}
+                  onChange={(e) => setBanTabRoom(e.target.value ? Number(e.target.value) : '')}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500"
+                >
+                  <option value="">클럽을 선택하세요</option>
+                  {chatRooms?.map((room) => (
+                    <option key={room.id} value={room.id}>
+                      {room.name} ({room.member_count}명)
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {banTabRoom !== '' && (
+                <BanForm
+                  roomId={banTabRoom as number}
+                  users={banTabMembers?.filter((u) => u.role !== 'admin') || []}
+                  onSuccess={() => queryClient.invalidateQueries({ queryKey: ['adminActiveBans'] })}
+                />
+              )}
+              {banTabRoom === '' && (
+                <div className="text-center text-gray-500 py-4">클럽을 선택하면 제재를 등록할 수 있습니다.</div>
+              )}
+            </div>
+          </div>
+
+          {/* 활성 제재 목록 */}
+          <div className="bg-white rounded-lg shadow">
+            <div className="p-4 border-b border-gray-200 flex justify-between items-center flex-wrap gap-2">
+              <h2 className="text-lg font-semibold">활성 제재 목록</h2>
+              <div className="flex items-center gap-4 text-sm">
+                <label className="flex items-center gap-1 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="banListFilter"
+                    checked={banListFilter === 'all'}
+                    onChange={() => setBanListFilter('all')}
+                    className="text-green-600 focus:ring-green-500"
+                  />
+                  전체
+                </label>
+                <label className={`flex items-center gap-1 ${banTabRoom === '' ? 'text-gray-400' : 'cursor-pointer'}`}>
+                  <input
+                    type="radio"
+                    name="banListFilter"
+                    checked={banListFilter === 'club'}
+                    onChange={() => setBanListFilter('club')}
+                    disabled={banTabRoom === ''}
+                    className="text-green-600 focus:ring-green-500"
+                  />
+                  선택된 클럽만
+                </label>
+              </div>
+            </div>
+            <div className="divide-y divide-gray-200">
+              {(() => {
+                const filtered = banListFilter === 'club' && banTabRoom !== ''
+                  ? activeBans?.filter((ban) => ban.room === banTabRoom)
+                  : activeBans;
+                return filtered && filtered.length > 0 ? (
+                  filtered.map((ban) => {
+                    const room = chatRooms?.find((r) => r.id === ban.room);
+                    return (
+                      <div key={ban.id} className="p-4 flex justify-between items-start">
+                        <div className="space-y-1">
+                          <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-sm">
+                            <span className="text-gray-500">클럽명 :</span>
+                            <span className="font-medium">{ban.room_name || `클럽 #${ban.room}`} / {room?.club_leader?.username || '-'}</span>
+                            <span className="text-gray-500">회원명 :</span>
+                            <span className="font-medium">{ban.user?.username}</span>
+                            <span className="text-gray-500">제재유형 :</span>
+                            <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded w-fit ${
+                              ban.ban_type === 'mute' ? 'bg-yellow-100 text-yellow-800' :
+                              ban.ban_type === 'kick' ? 'bg-orange-100 text-orange-800' : 'bg-red-100 text-red-800'
+                            }`}>
+                              {ban.ban_type_display}
+                            </span>
+                          </div>
+                          <div className="text-sm text-gray-500">사유: {ban.reason || '없음'}</div>
+                          <div className="text-xs text-gray-400">
+                            제재자: {ban.banned_by?.username} | {new Date(ban.created_at).toLocaleDateString()}
+                            {ban.expires_at && <> | 만료: {new Date(ban.expires_at).toLocaleDateString()}</>}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => unbanMutation.mutate({ roomId: ban.room, banId: ban.id })}
+                          className="px-3 py-1 rounded text-sm bg-green-100 text-green-700 hover:bg-green-200 flex-shrink-0"
+                        >
+                          해제
+                        </button>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="p-8 text-center text-gray-500">활성 제재가 없습니다.</div>
+                );
+              })()}
+            </div>
+          </div>
         </div>
       )}
 
@@ -4676,7 +5010,7 @@ export default function AdminDashboard() {
                 className="w-full sm:w-64 px-3 py-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500"
               >
                 <option value="">전체 회원</option>
-                {allChatRooms?.filter(r => !r.is_public).map(room => (
+                {allChatRooms?.map(room => (
                   <option key={room.id} value={room.id}>{room.name}</option>
                 ))}
               </select>
@@ -4965,6 +5299,9 @@ export default function AdminDashboard() {
             <div className="p-4">
               <p className="text-sm text-gray-600 mb-4">
                 <strong>{pendingApprovalUser.username}</strong>님은 클럽 가입을 희망합니다.
+                {pendingApprovalUser.requested_club_name && (
+                  <><br />희망 클럽: <strong>{pendingApprovalUser.requested_club_name}</strong></>
+                )}
                 <br />배정할 클럽을 선택해주세요.
               </p>
               <div className="mb-4">
@@ -4975,7 +5312,7 @@ export default function AdminDashboard() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500"
                 >
                   <option value="">클럽 미배정</option>
-                  {allChatRooms?.filter((r) => !r.is_public).map((room) => (
+                  {allChatRooms?.map((room) => (
                     <option key={room.id} value={room.id}>
                       {room.name} ({room.member_count}명)
                     </option>

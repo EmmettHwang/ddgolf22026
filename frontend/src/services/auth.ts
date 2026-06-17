@@ -83,6 +83,7 @@ export const authService = {
     phone?: string;
     requested_role: 'instructor' | 'member';
     wants_club_membership?: boolean;
+    requested_club?: number | null;
   }): Promise<User> => {
     const response = await api.post('/accounts/register/simple/', data);
     return response.data;
@@ -103,6 +104,11 @@ export const authService = {
       headers: { 'Content-Type': 'multipart/form-data' },
     } : undefined);
     return response.data;
+  },
+
+  deleteAccount: async (password?: string): Promise<void> => {
+    await api.post('/accounts/delete-account/', { password });
+    clearTokens();
   },
 
   isAuthenticated: (): boolean => {

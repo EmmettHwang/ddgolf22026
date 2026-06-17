@@ -61,8 +61,8 @@ class ChatRoomViewSet(viewsets.ModelViewSet):
         return ChatRoomDetailSerializer
 
     def get_permissions(self):
-        """채팅방 생성은 관리자만 가능"""
-        if self.action == 'create':
+        """채팅방 생성/삭제는 관리자만 가능"""
+        if self.action in ('create', 'destroy'):
             return [permissions.IsAdminUser()]
         return super().get_permissions()
 
@@ -78,9 +78,11 @@ class ChatRoomViewSet(viewsets.ModelViewSet):
         """채팅방 메시지 조회"""
         room = self.get_object()
 
-        # 채팅방 접근 시 멤버십 자동 생성 (관리자, 공용 채팅방 또는 멤버인 경우)
-        if request.user.is_staff or room.is_public or room.members.filter(pk=request.user.pk).exists():
-            if not room.members.filter(pk=request.user.pk).exists():
+        # 채팅방 접근 시 멤버십 자동 생성 (공용 채팅방 또는 기존 멤버인 경우)
+        # 관리자는 조회만 가능하고 자동 멤버 추가 안 함
+        is_member = room.members.filter(pk=request.user.pk).exists()
+        if room.is_public or is_member:
+            if not is_member:
                 room.members.add(request.user)
             ChatRoomMembership.objects.get_or_create(
                 room=room,
@@ -306,18 +308,22 @@ class ChatRoomViewSet(viewsets.ModelViewSet):
         serializer = UserSerializer(available, many=True)
         return Response(serializer.data)
 
-    @action(detail=True, methods=['get'], permission_classes=[permissions.IsAdminUser])
+    @action(detail=True, methods=['get'])
     def bans(self, request, pk=None):
-        """채팅방 제재 목록 조회 (관리자 전용)"""
+        """채팅방 제재 목록 조회 (관리자/클럽장)"""
         room = self.get_object()
+        if not room.can_manage(request.user):
+            return Response({'error': '권한이 없습니다.'}, status=status.HTTP_403_FORBIDDEN)
         bans = room.bans.filter(is_active=True)
         serializer = ChatBanSerializer(bans, many=True)
         return Response(serializer.data)
 
-    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAdminUser])
+    @action(detail=True, methods=['post'])
     def ban_user(self, request, pk=None):
-        """회원 제재 (관리자 전용)"""
+        """회원 제재 (관리자/클럽장)"""
         room = self.get_object()
+        if not room.can_manage(request.user):
+            return Response({'error': '권한이 없습니다.'}, status=status.HTTP_403_FORBIDDEN)
         serializer = ChatBanCreateSerializer(data=request.data)
         if serializer.is_valid():
             ban = serializer.save(room=room, banned_by=request.user)
@@ -332,11 +338,12 @@ class ChatRoomViewSet(viewsets.ModelViewSet):
             )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    @action(detail=True, methods=['post'], url_path='unban/(?P<ban_pk>[^/.]+)',
-            permission_classes=[permissions.IsAdminUser])
+    @action(detail=True, methods=['post'], url_path='unban/(?P<ban_pk>[^/.]+)')
     def unban_user(self, request, pk=None, ban_pk=None):
-        """회원 제재 해제 (관리자 전용)"""
+        """회원 제재 해제 (관리자/클럽장)"""
         room = self.get_object()
+        if not room.can_manage(request.user):
+            return Response({'error': '권한이 없습니다.'}, status=status.HTTP_403_FORBIDDEN)
         try:
             ban = room.bans.get(pk=ban_pk)
             ban.is_active = False
@@ -418,6 +425,42 @@ class ChatRoomViewSet(viewsets.ModelViewSet):
             'message': f'{deleted_count}개의 메시지가 삭제되었습니다.',
             'deleted_count': deleted_count
         })
+
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAdminUser])
+    def admin_add_member(self, request, pk=None):
+        """관리자용 멤버 추가 - 모든 채팅방에 사용 가능"""
+        room = self.get_object()
+        user_id = request.data.get('user_id')
+        if not user_id:
+            return Response({'error': 'user_id가 필요합니다.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            user = User.objects.get(pk=user_id, is_approved=True)
+        except User.DoesNotExist:
+            return Response({'error': '사용자를 찾을 수 없습니다.'}, status=status.HTTP_404_NOT_FOUND)
+        if room.members.filter(pk=user.pk).exists():
+            return Response({'error': '이미 멤버입니다.'}, status=status.HTTP_400_BAD_REQUEST)
+        room.members.add(user)
+        ChatRoomMembership.objects.get_or_create(room=room, user=user)
+        return Response({'message': f'{user.username}님이 추가되었습니다.'})
+
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAdminUser])
+    def admin_remove_member(self, request, pk=None):
+        """관리자용 멤버 제거 - 모든 채팅방에 사용 가능"""
+        room = self.get_object()
+        user_id = request.data.get('user_id')
+        if not user_id:
+            return Response({'error': 'user_id가 필요합니다.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            user = User.objects.get(pk=user_id)
+        except User.DoesNotExist:
+            return Response({'error': '사용자를 찾을 수 없습니다.'}, status=status.HTTP_404_NOT_FOUND)
+        room.members.remove(user)
+        ChatRoomMembership.objects.filter(room=room, user=user).delete()
+        # 배정 클럽이 이 방이면 해제
+        if user.assigned_club_id == room.pk:
+            user.assigned_club = None
+            user.save(update_fields=['assigned_club'])
+        return Response({'message': f'{user.username}님이 제거되었습니다.'})
 
     @action(detail=True, methods=['get'], permission_classes=[permissions.IsAdminUser])
     def admin_messages(self, request, pk=None):

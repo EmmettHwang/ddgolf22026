@@ -4,7 +4,8 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from .views import (
     RegisterView, SimpleRegisterView, ProfileView, UserListView,
     UserApproveView, UserBlockView, UserUnblockView, UserChangeRoleView,
-    UserToggleClubMembershipView, UserAssignClubView,
+    UserToggleClubMembershipView, UserAssignClubView, UserDeleteView,
+    AccountDeleteView,
     SendVerificationCodeView, VerifyCodeView, GoogleLoginView,
     VerifyPasswordView, ChangePasswordView, CustomTokenObtainPairView,
     PendingUserCountView, AdminNotificationsView, DashboardStatsView
@@ -28,6 +29,7 @@ urlpatterns = [
     path('profile/', ProfileView.as_view(), name='profile'),
     path('verify-password/', VerifyPasswordView.as_view(), name='verify-password'),
     path('change-password/', ChangePasswordView.as_view(), name='change-password'),
+    path('delete-account/', AccountDeleteView.as_view(), name='delete-account'),
 
     # 관리자
     path('users/dashboard-stats/', DashboardStatsView.as_view(), name='dashboard-stats'),
@@ -35,6 +37,7 @@ urlpatterns = [
     path('users/admin-notifications/', AdminNotificationsView.as_view(), name='admin-notifications'),
     path('users/', UserListView.as_view(), name='user-list'),
     path('users/<int:pk>/approve/', UserApproveView.as_view(), name='user-approve'),
+    path('users/<int:pk>/delete/', UserDeleteView.as_view(), name='user-delete'),
     path('users/<int:pk>/block/', UserBlockView.as_view(), name='user-block'),
     path('users/<int:pk>/unblock/', UserUnblockView.as_view(), name='user-unblock'),
     path('users/<int:pk>/change-role/', UserChangeRoleView.as_view(), name='user-change-role'),

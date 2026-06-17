@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { authService } from '../../services/auth';
 import { useAuthStore } from '../../store/authStore';
+import api from '../../services/api';
 
 declare global {
   interface Window {
@@ -47,11 +48,13 @@ export default function Register() {
     password2: '',
     phone: '',
     requested_role: 'member' as 'instructor' | 'member',
-    wants_club_membership: false,
+    requested_club: '' as string,
   });
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [clubs, setClubs] = useState<{ id: number; name: string }[]>([]);
+  const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
   const { setUser } = useAuthStore();
 
@@ -65,6 +68,11 @@ export default function Register() {
       script.defer = true;
       document.body.appendChild(script);
     }
+
+    // 클럽 목록 로드
+    api.get('/messenger/public/clubs/').then(res => {
+      setClubs(res.data);
+    }).catch(() => {});
   }, []);
 
   // 전화번호 포맷팅 함수
@@ -163,7 +171,8 @@ export default function Register() {
         password: formData.password,
         phone: formData.phone || undefined,
         requested_role: formData.requested_role,
-        wants_club_membership: formData.wants_club_membership,
+        wants_club_membership: !!formData.requested_club,
+        requested_club: formData.requested_club ? Number(formData.requested_club) : null,
       });
       alert('회원가입이 완료되었습니다. 관리자 승인 후 이용 가능합니다.');
       navigate('/login');
@@ -272,35 +281,23 @@ export default function Register() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                클럽 가입 여부 *
+              <label htmlFor="requested_club" className="block text-sm font-medium text-gray-700 mb-1">
+                희망 클럽
               </label>
-              <div className="flex gap-4">
-                <label className="flex items-center">
-                  <input
-                    type="radio"
-                    name="wants_club_membership"
-                    value="true"
-                    checked={formData.wants_club_membership === true}
-                    onChange={() => setFormData({ ...formData, wants_club_membership: true })}
-                    className="mr-2 text-green-600 focus:ring-green-500"
-                  />
-                  <span className="text-gray-700">클럽 가입 희망</span>
-                </label>
-                <label className="flex items-center">
-                  <input
-                    type="radio"
-                    name="wants_club_membership"
-                    value="false"
-                    checked={formData.wants_club_membership === false}
-                    onChange={() => setFormData({ ...formData, wants_club_membership: false })}
-                    className="mr-2 text-green-600 focus:ring-green-500"
-                  />
-                  <span className="text-gray-700">클럽 미가입</span>
-                </label>
-              </div>
+              <select
+                id="requested_club"
+                name="requested_club"
+                value={formData.requested_club}
+                onChange={handleChange}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
+              >
+                <option value="">클럽 미가입</option>
+                {clubs.map(club => (
+                  <option key={club.id} value={club.id}>{club.name}</option>
+                ))}
+              </select>
               <p className="text-xs text-gray-500 mt-1">
-                클럽 미가입 시 공용 클럽만 이용 가능합니다.
+                클럽을 선택하지 않으면 공용 클럽만 이용 가능합니다.
               </p>
             </div>
 
@@ -308,39 +305,77 @@ export default function Register() {
               <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
                 비밀번호 *
               </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                value={formData.password}
-                onChange={handleChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
-                placeholder="8자 이상 입력"
-                required
-                minLength={8}
-              />
+              <div className="relative">
+                <input
+                  id="password"
+                  name="password"
+                  type={showPassword ? 'text' : 'password'}
+                  value={formData.password}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
+                  placeholder="8자 이상 입력"
+                  required
+                  minLength={8}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  tabIndex={-1}
+                >
+                  {showPassword ? (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L6.59 6.59m7.532 7.532l3.29 3.29M3 3l18 18" />
+                    </svg>
+                  ) : (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                  )}
+                </button>
+              </div>
             </div>
 
             <div>
               <label htmlFor="password2" className="block text-sm font-medium text-gray-700 mb-1">
                 비밀번호 확인 *
               </label>
-              <input
-                id="password2"
-                name="password2"
-                type="password"
-                value={formData.password2}
-                onChange={handleChange}
-                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none ${
-                  passwordMatch === null
-                    ? 'border-gray-300'
-                    : passwordMatch
-                    ? 'border-green-500'
-                    : 'border-red-500'
-                }`}
-                placeholder="비밀번호 재입력"
-                required
-              />
+              <div className="relative">
+                <input
+                  id="password2"
+                  name="password2"
+                  type={showPassword ? 'text' : 'password'}
+                  value={formData.password2}
+                  onChange={handleChange}
+                  className={`w-full px-4 py-3 pr-12 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none ${
+                    passwordMatch === null
+                      ? 'border-gray-300'
+                      : passwordMatch
+                      ? 'border-green-500'
+                      : 'border-red-500'
+                  }`}
+                  placeholder="비밀번호 재입력"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  tabIndex={-1}
+                >
+                  {showPassword ? (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L6.59 6.59m7.532 7.532l3.29 3.29M3 3l18 18" />
+                    </svg>
+                  ) : (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                  )}
+                </button>
+              </div>
               {formData.password2 && (
                 <p className={`mt-1 text-sm ${passwordMatch ? 'text-green-600' : 'text-red-600'}`}>
                   {passwordMatch ? '✓ 비밀번호가 일치합니다' : '✗ 비밀번호가 일치하지 않습니다'}

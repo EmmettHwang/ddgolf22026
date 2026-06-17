@@ -17,13 +17,14 @@ class ChatRoomListSerializer(serializers.ModelSerializer):
     unread_count = serializers.SerializerMethodField()
     member_count = serializers.SerializerMethodField()
     created_by = UserSerializer(read_only=True)
+    club_leader = serializers.SerializerMethodField()
     can_manage = serializers.SerializerMethodField()
     notification_enabled = serializers.SerializerMethodField()
 
     class Meta:
         model = ChatRoom
         fields = ['id', 'name', 'description', 'icon', 'is_group', 'is_public',
-                  'created_by', 'member_count', 'can_manage',
+                  'created_by', 'club_leader', 'member_count', 'can_manage',
                   'last_message', 'unread_count', 'notification_enabled', 'updated_at']
 
     def get_last_message(self, obj):
@@ -67,6 +68,17 @@ class ChatRoomListSerializer(serializers.ModelSerializer):
     def get_member_count(self, obj):
         return obj.members.count()
 
+    def get_club_leader(self, obj):
+        """클럽에 배정된 클럽장(instructor) 반환"""
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        leader = User.objects.filter(
+            assigned_club=obj, role='instructor'
+        ).first()
+        if leader:
+            return UserSerializer(leader).data
+        return None
+
     def get_can_manage(self, obj):
         request = self.context.get('request')
         if request and request.user.is_authenticated:
@@ -85,12 +97,13 @@ class ChatRoomDetailSerializer(serializers.ModelSerializer):
     members = UserSerializer(many=True, read_only=True)
     messages = serializers.SerializerMethodField()
     created_by = UserSerializer(read_only=True)
+    club_leader = serializers.SerializerMethodField()
     can_manage = serializers.SerializerMethodField()
 
     class Meta:
         model = ChatRoom
         fields = ['id', 'name', 'description', 'icon', 'is_group', 'is_public',
-                  'created_by', 'members', 'can_manage',
+                  'created_by', 'club_leader', 'members', 'can_manage',
                   'messages', 'created_at', 'updated_at']
         read_only_fields = ['id', 'created_at', 'updated_at']
 
@@ -98,6 +111,17 @@ class ChatRoomDetailSerializer(serializers.ModelSerializer):
         # 최근 50개 메시지만 반환
         messages = obj.messages.filter(is_deleted=False).order_by('-created_at')[:50]
         return MessageSerializer(messages, many=True).data
+
+    def get_club_leader(self, obj):
+        """클럽에 배정된 클럽장(instructor) 반환"""
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        leader = User.objects.filter(
+            assigned_club=obj, role='instructor'
+        ).first()
+        if leader:
+            return UserSerializer(leader).data
+        return None
 
     def get_can_manage(self, obj):
         request = self.context.get('request')
@@ -132,10 +156,11 @@ class ChatBanSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
     banned_by = UserSerializer(read_only=True)
     ban_type_display = serializers.CharField(source='get_ban_type_display', read_only=True)
+    room_name = serializers.CharField(source='room.name', read_only=True)
 
     class Meta:
         model = ChatBan
-        fields = ['id', 'room', 'user', 'banned_by', 'ban_type', 'ban_type_display',
+        fields = ['id', 'room', 'room_name', 'user', 'banned_by', 'ban_type', 'ban_type_display',
                   'reason', 'expires_at', 'is_active', 'created_at']
         read_only_fields = ['id', 'user', 'banned_by', 'created_at']
 

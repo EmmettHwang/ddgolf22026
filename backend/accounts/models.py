@@ -65,6 +65,14 @@ class User(AbstractUser):
     )
     is_approved = models.BooleanField('승인 여부', default=False)
     wants_club_membership = models.BooleanField('클럽 가입 희망', default=False)
+    requested_club = models.ForeignKey(
+        'messenger.ChatRoom',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        verbose_name='희망 클럽',
+        related_name='requested_members'
+    )
     assigned_club = models.ForeignKey(
         'messenger.ChatRoom',
         null=True,

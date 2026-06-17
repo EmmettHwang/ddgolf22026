@@ -220,34 +220,32 @@ export default function About() {
               협회임원
             </h2>
             {executives && executives.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
                 {executives.map((exec) => (
                   <div
                     key={exec.id}
-                    className="bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-md transition-shadow"
+                    className="bg-white rounded-lg border border-gray-200 p-3 text-center hover:shadow-md transition-shadow"
                   >
-                    <div className="p-6 text-center">
-                      {exec.photo ? (
-                        <img
-                          src={getImageUrl(exec.photo) || ''}
-                          alt={exec.name}
-                          className="w-24 h-24 rounded-full object-cover mx-auto mb-4"
-                        />
-                      ) : (
-                        <div className="w-24 h-24 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
-                          <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                          </svg>
-                        </div>
-                      )}
-                      <h3 className="text-lg font-bold text-gray-800">{exec.name}</h3>
-                      {exec.phone && (
-                        <p className="text-sm text-gray-500 mt-1">{exec.phone}</p>
-                      )}
-                      {exec.greeting && (
-                        <p className="text-sm text-gray-600 mt-3 leading-relaxed">{exec.greeting}</p>
-                      )}
-                    </div>
+                    {exec.photo ? (
+                      <img
+                        src={getImageUrl(exec.photo) || ''}
+                        alt={exec.name}
+                        className="w-14 h-14 rounded-full object-cover mx-auto mb-2"
+                      />
+                    ) : (
+                      <div className="w-14 h-14 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                        <svg className="w-7 h-7 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                      </div>
+                    )}
+                    <h3 className="text-sm font-bold text-gray-800 truncate">{exec.name}</h3>
+                    {exec.phone && (
+                      <p className="text-xs text-gray-500 mt-0.5 truncate">{exec.phone}</p>
+                    )}
+                    {exec.greeting && (
+                      <p className="text-xs text-gray-400 mt-1 line-clamp-2 leading-tight">{exec.greeting}</p>
+                    )}
                   </div>
                 ))}
               </div>
