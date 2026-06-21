@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { authService } from '../../services/auth';
 import { useAuthStore } from '../../store/authStore';
 import api from '../../services/api';
+import ConfirmDialog, { useDialog } from '../../components/common/ConfirmDialog';
 
 declare global {
   interface Window {
@@ -57,6 +58,7 @@ export default function Register() {
   const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
   const { setUser } = useAuthStore();
+  const { dialogState, showAlert, handleConfirm, handleCancel } = useDialog();
 
   useEffect(() => {
     // Google Identity Services 스크립트 로드
@@ -123,7 +125,7 @@ export default function Register() {
 
             // 승인 대기 중인 경우
             if (result.pending_approval) {
-              alert(result.message || '관리자 승인 대기 중입니다. 승인 후 로그인 가능합니다.');
+              showAlert(result.message || '관리자 승인 대기 중입니다. 승인 후 로그인 가능합니다.');
               setGoogleLoading(false);
               return;
             }
@@ -131,7 +133,7 @@ export default function Register() {
             setUser(result.user);
 
             if (result.created) {
-              alert('구글 계정으로 회원가입이 완료되었습니다!');
+              showAlert('구글 계정으로 회원가입이 완료되었습니다!');
             }
 
             navigate('/', { replace: true });
@@ -174,7 +176,7 @@ export default function Register() {
         wants_club_membership: !!formData.requested_club,
         requested_club: formData.requested_club ? Number(formData.requested_club) : null,
       });
-      alert('회원가입이 완료되었습니다. 관리자 승인 후 이용 가능합니다.');
+      showAlert('회원가입이 완료되었습니다. 관리자 승인 후 이용 가능합니다.');
       navigate('/login');
     } catch (err: unknown) {
       const error = err as { response?: { data?: Record<string, string | string[]> } };
@@ -450,6 +452,15 @@ export default function Register() {
           </div>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={dialogState.open}
+        title={dialogState.title}
+        message={dialogState.message}
+        type={dialogState.type}
+        onConfirm={handleConfirm}
+        onCancel={handleCancel}
+      />
     </div>
   );
 }

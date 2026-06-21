@@ -266,6 +266,7 @@ class UserListView(generics.ListAPIView):
     queryset = User.objects.all().order_by('-created_at')
     serializer_class = AdminUserSerializer
     permission_classes = [permissions.IsAdminUser]
+    pagination_class = None
 
 
 class PendingUserCountView(APIView):
@@ -391,17 +392,18 @@ class UserToggleClubMembershipView(APIView):
 
 
 class UserDeleteView(APIView):
-    """미승인 회원 삭제 API (관리자용)"""
+    """회원 삭제 API (관리자용)"""
     permission_classes = [permissions.IsAdminUser]
 
     def delete(self, request, pk):
         try:
             user = User.objects.get(pk=pk)
-            if user.is_approved:
+            if user.role == 'admin':
                 return Response(
-                    {'error': '승인된 회원은 삭제할 수 없습니다.'},
+                    {'error': '관리자 계정은 삭제할 수 없습니다.'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
+            user.chat_rooms.clear()
             user.delete()
             return Response({'message': '회원이 삭제되었습니다.'})
         except User.DoesNotExist:

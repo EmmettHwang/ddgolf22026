@@ -21,6 +21,7 @@ class IsAdminOrReadOnly(permissions.BasePermission):
 class EventViewSet(viewsets.ModelViewSet):
     """일정 ViewSet"""
     permission_classes = [permissions.IsAuthenticated, IsAdminOrReadOnly]
+    pagination_class = None
 
     def get_queryset(self):
         queryset = Event.objects.all()
@@ -176,6 +177,7 @@ class EventViewSet(viewsets.ModelViewSet):
 class PublicEventViewSet(viewsets.ReadOnlyModelViewSet):
     """공개 일정 ViewSet (비로그인 접근 가능)"""
     permission_classes = [permissions.AllowAny]
+    pagination_class = None
 
     def get_queryset(self):
         queryset = Event.objects.filter(visibility='public')

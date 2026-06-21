@@ -26,15 +26,6 @@
   </head>
   <body>
     <div id="root"></div>
-    <script>
-      // 이전 캐시 1회 정리 (v1.12 업데이트)
-      if (!localStorage.getItem('sw_cleared_v112') && 'caches' in window) {
-        caches.keys().then(function(names) {
-          names.forEach(function(name) { caches.delete(name); });
-        });
-        localStorage.setItem('sw_cleared_v112', '1');
-      }
-    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

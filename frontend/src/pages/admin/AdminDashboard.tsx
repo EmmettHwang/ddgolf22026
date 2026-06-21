@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../../services/api';
 import type { User, Notice, Album, Photo, ChatRoom, Message, Banner, Organization, SmsLog, History, ChatBan } from '../../types';
 import Loading from '../../components/common/Loading';
+import ConfirmDialog, { useDialog } from '../../components/common/ConfirmDialog';
 import { noticesService } from '../../services/notices';
 import { smsService } from '../../services/sms';
 
@@ -468,15 +469,20 @@ function ClubAssignSelect({
   );
 }
 
-const APP_VERSION = 'v3.1.20260617.1900';
+const APP_VERSION = 'v3.7.20260622.0830';
 
 export default function AdminDashboard() {
+  const { dialogState, showAlert, showConfirm, handleConfirm, handleCancel } = useDialog();
   const [searchParams] = useSearchParams();
   const initialTab = (searchParams.get('tab') as TabType) || 'dashboard';
   const [activeTab, setActiveTab] = useState<TabType>(initialTab);
   const [showVersionModal, setShowVersionModal] = useState(false);
   const [readmeContent, setReadmeContent] = useState<string | null>(null);
   const [memberFilter, setMemberFilter] = useState<'pending' | 'all'>('pending');
+  const [memberSearch, setMemberSearch] = useState('');
+  const [memberPageSize, setMemberPageSize] = useState<number>(20);
+  const [memberPage, setMemberPage] = useState(1);
+  const [memberSort, setMemberSort] = useState<{ field: string; dir: 'asc' | 'desc' }>({ field: 'created_at', dir: 'desc' });
   const [showNoticeForm, setShowNoticeForm] = useState(false);
   const [editingNotice, setEditingNotice] = useState<Notice | null>(null);
   const noticeFormRef = useRef<HTMLFormElement>(null);
@@ -521,6 +527,13 @@ export default function AdminDashboard() {
   const [editingClubId, setEditingClubId] = useState<number | null>(null);
   const [editingClubName, setEditingClubName] = useState('');
   const [showCreateClubForm, setShowCreateClubForm] = useState(false);
+  const [clubListSearch, setClubListSearch] = useState('');
+  const [scheduleSearch, setScheduleSearch] = useState('');
+  const [noticeSearch, setNoticeSearch] = useState('');
+  const [bannerSearch, setBannerSearch] = useState('');
+  const [orgSearch, setOrgSearch] = useState('');
+  const [docSearch, setDocSearch] = useState('');
+  const [versionStatus, setVersionStatus] = useState<'checking' | 'latest' | 'update'>('latest');
   const [bannerPhonePrefix, setBannerPhonePrefix] = useState('02');
   const [bannerPhoneNumber, setBannerPhoneNumber] = useState('');
   // SMS state
@@ -849,7 +862,7 @@ export default function AdminDashboard() {
       queryClient.invalidateQueries({ queryKey: ['adminDocCategories'] });
       setShowDocCategoryForm(false);
       setEditingDocCategory(null);
-      alert('카테고리가 등록되었습니다.');
+      showAlert('카테고리가 등록되었습니다.');
     },
   });
 
@@ -858,7 +871,7 @@ export default function AdminDashboard() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['adminDocCategories'] });
       setEditingDocCategory(null);
-      alert('카테고리가 수정되었습니다.');
+      showAlert('카테고리가 수정되었습니다.');
     },
   });
 
@@ -880,7 +893,7 @@ export default function AdminDashboard() {
       setEditingDoc(null);
       setDocFiles([]);
       setDocThumbnailIndex(undefined);
-      alert('서식이 등록되었습니다.');
+      showAlert('서식이 등록되었습니다.');
     },
   });
 
@@ -892,7 +905,7 @@ export default function AdminDashboard() {
       setShowDocForm(false);
       setDocFiles([]);
       setDocThumbnailIndex(undefined);
-      alert('서식이 수정되었습니다.');
+      showAlert('서식이 수정되었습니다.');
     },
   });
 
@@ -972,7 +985,7 @@ export default function AdminDashboard() {
       setPendingApprovalUser(null);
       setPendingApprovalRole('member');
       setSelectedClubId(null);
-      alert('회원이 승인되었습니다.');
+      showAlert('회원이 승인되었습니다.');
     },
   });
 
@@ -980,7 +993,7 @@ export default function AdminDashboard() {
     mutationFn: (userId: number) => api.post(`/accounts/users/${userId}/block/`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['adminUsers'] });
-      alert('회원이 차단되었습니다.');
+      showAlert('회원이 차단되었습니다.');
     },
   });
 
@@ -988,7 +1001,7 @@ export default function AdminDashboard() {
     mutationFn: (userId: number) => api.post(`/accounts/users/${userId}/unblock/`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['adminUsers'] });
-      alert('차단이 해제되었습니다.');
+      showAlert('차단이 해제되었습니다.');
     },
   });
 
@@ -997,7 +1010,7 @@ export default function AdminDashboard() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['adminUsers'] });
       queryClient.invalidateQueries({ queryKey: ['adminNotifications'] });
-      alert('회원이 삭제되었습니다.');
+      showAlert('회원이 삭제되었습니다.');
     },
   });
 
@@ -1006,7 +1019,7 @@ export default function AdminDashboard() {
       api.post(`/accounts/users/${userId}/change-role/`, { role }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['adminUsers'] });
-      alert('역할이 변경되었습니다.');
+      showAlert('역할이 변경되었습니다.');
     },
   });
 
@@ -1027,7 +1040,7 @@ export default function AdminDashboard() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['adminNotices'] });
       setShowNoticeForm(false);
-      alert('공지사항이 등록되었습니다.');
+      showAlert('공지사항이 등록되었습니다.');
     },
   });
 
@@ -1038,7 +1051,7 @@ export default function AdminDashboard() {
       queryClient.invalidateQueries({ queryKey: ['adminNotices'] });
       setShowNoticeForm(false);
       setEditingNotice(null);
-      alert('공지사항이 수정되었습니다.');
+      showAlert('공지사항이 수정되었습니다.');
     },
   });
 
@@ -1058,7 +1071,7 @@ export default function AdminDashboard() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['adminEvents'] });
       setShowEventForm(false);
-      alert('일정이 등록되었습니다.');
+      showAlert('일정이 등록되었습니다.');
     },
   });
 
@@ -1068,7 +1081,7 @@ export default function AdminDashboard() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['adminEvents'] });
       setEditingEvent(null);
-      alert('일정이 수정되었습니다.');
+      showAlert('일정이 수정되었습니다.');
     },
   });
 
@@ -1094,7 +1107,7 @@ export default function AdminDashboard() {
       queryClient.invalidateQueries({ queryKey: ['eventDetail', managingEventId] });
       queryClient.invalidateQueries({ queryKey: ['adminEvents'] });
       queryClient.invalidateQueries({ queryKey: ['adminNotifications'] });
-      alert('참가가 승인되었습니다.');
+      showAlert('참가가 승인되었습니다.');
     },
   });
 
@@ -1105,7 +1118,7 @@ export default function AdminDashboard() {
       queryClient.invalidateQueries({ queryKey: ['eventDetail', managingEventId] });
       queryClient.invalidateQueries({ queryKey: ['adminEvents'] });
       queryClient.invalidateQueries({ queryKey: ['adminNotifications'] });
-      alert('참가가 거절되었습니다.');
+      showAlert('참가가 거절되었습니다.');
     },
   });
 
@@ -1137,11 +1150,11 @@ export default function AdminDashboard() {
       queryClient.invalidateQueries({ queryKey: ['adminGalleryCategories'] });
       setAlbumPhotos([]); setAlbumCoverIndex(0);
       setShowAlbumForm(false);
-      alert('앨범이 등록되었습니다.');
+      showAlert('앨범이 등록되었습니다.');
     },
     onError: (error: any) => {
       setUploadProgress(0);
-      alert('앨범 등록 실패: ' + (error?.response?.data?.detail || error?.message || '서버 오류'));
+      showAlert('앨범 등록 실패: ' + (error?.response?.data?.detail || error?.message || '서버 오류'));
     },
   });
 
@@ -1160,11 +1173,11 @@ export default function AdminDashboard() {
       setEditingAlbum(null);
       setAlbumPhotos([]); setAlbumCoverIndex(0);
       setShowAlbumForm(false);
-      alert('앨범이 수정되었습니다.');
+      showAlert('앨범이 수정되었습니다.');
     },
     onError: (error: any) => {
       setUploadProgress(0);
-      alert('앨범 수정 실패: ' + (error?.response?.data?.detail || error?.message || '서버 오류'));
+      showAlert('앨범 수정 실패: ' + (error?.response?.data?.detail || error?.message || '서버 오류'));
     },
   });
 
@@ -1232,7 +1245,7 @@ export default function AdminDashboard() {
       queryClient.invalidateQueries({ queryKey: ['adminGalleryCategories'] });
       setShowGalleryCategoryForm(false);
       setEditingGalleryCategory(null);
-      alert('카테고리가 등록되었습니다.');
+      showAlert('카테고리가 등록되었습니다.');
     },
     onError: () => alert('카테고리 등록에 실패했습니다.'),
   });
@@ -1242,7 +1255,7 @@ export default function AdminDashboard() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['adminGalleryCategories'] });
       setEditingGalleryCategory(null);
-      alert('카테고리가 수정되었습니다.');
+      showAlert('카테고리가 수정되었습니다.');
     },
     onError: () => alert('카테고리 수정에 실패했습니다.'),
   });
@@ -1275,7 +1288,7 @@ export default function AdminDashboard() {
       api.patch(`/messenger/rooms/${roomId}/`, { name }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['adminChatRooms'] });
-      alert('클럽 이름이 변경되었습니다.');
+      showAlert('클럽 이름이 변경되었습니다.');
     },
   });
 
@@ -1285,7 +1298,7 @@ export default function AdminDashboard() {
       api.patch(`/messenger/rooms/${roomId}/`, { description }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['adminChatRooms'] });
-      alert('클럽 소개가 저장되었습니다.');
+      showAlert('클럽 소개가 저장되었습니다.');
     },
   });
 
@@ -1294,7 +1307,7 @@ export default function AdminDashboard() {
     mutationFn: (roomId: number) => api.post(`/messenger/rooms/${roomId}/clear_messages/`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['adminChatRooms'] });
-      alert('채팅 기록이 삭제되었습니다.');
+      showAlert('채팅 기록이 삭제되었습니다.');
     },
   });
 
@@ -1352,7 +1365,7 @@ export default function AdminDashboard() {
       setShowBannerForm(false);
       setBannerImage([]);
       resetBannerPhone();
-      alert('배너가 등록되었습니다.');
+      showAlert('배너가 등록되었습니다.');
     },
   });
 
@@ -1364,7 +1377,7 @@ export default function AdminDashboard() {
       setShowBannerForm(false);
       setBannerImage([]);
       resetBannerPhone();
-      alert('배너가 수정되었습니다.');
+      showAlert('배너가 수정되었습니다.');
     },
   });
 
@@ -1390,7 +1403,7 @@ export default function AdminDashboard() {
       queryClient.invalidateQueries({ queryKey: ['adminOrganizations'] });
       setShowOrgForm(false);
       setOrgLogo([]);
-      alert('유관기관이 등록되었습니다.');
+      showAlert('유관기관이 등록되었습니다.');
     },
   });
 
@@ -1401,7 +1414,7 @@ export default function AdminDashboard() {
       setEditingOrg(null);
       setShowOrgForm(false);
       setOrgLogo([]);
-      alert('유관기관이 수정되었습니다.');
+      showAlert('유관기관이 수정되었습니다.');
     },
   });
 
@@ -1426,7 +1439,7 @@ export default function AdminDashboard() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['adminAboutContent'] });
       setAboutGreetingImage([]);
-      alert('협회소개가 수정되었습니다.');
+      showAlert('협회소개가 수정되었습니다.');
     },
   });
 
@@ -1441,7 +1454,7 @@ export default function AdminDashboard() {
       setExecutiveName('');
       setExecutiveGreeting('');
       setExecutiveOrder('');
-      alert('임원이 등록되었습니다.');
+      showAlert('임원이 등록되었습니다.');
     },
   });
 
@@ -1455,7 +1468,7 @@ export default function AdminDashboard() {
       setExecutiveName('');
       setExecutiveGreeting('');
       setExecutiveOrder('');
-      alert('임원 정보가 수정되었습니다.');
+      showAlert('임원 정보가 수정되었습니다.');
     },
   });
 
@@ -1522,7 +1535,7 @@ export default function AdminDashboard() {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['adminChatRooms'] });
-      alert('클럽 이미지가 저장되었습니다.');
+      showAlert('클럽 이미지가 저장되었습니다.');
     },
   });
 
@@ -1581,14 +1594,14 @@ export default function AdminDashboard() {
   };
 
   // 회원 승인 핸들러 - 클럽 가입 희망 시 모달 표시
-  const handleApprove = (user: User, role: string) => {
+  const handleApprove = async (user: User, role: string) => {
     if (user.wants_club_membership) {
       setPendingApprovalUser(user);
       setPendingApprovalRole(role);
       setSelectedClubId(user.requested_club || null);
       setShowClubModal(true);
     } else {
-      if (window.confirm(`${user.username}님을 ${role === 'instructor' ? '클럽장' : '일반 회원'}(으)로 승인하시겠습니까?`)) {
+      if (await showConfirm(`${user.username}님을 ${role === 'instructor' ? '클럽장' : '일반 회원'}(으)로 승인하시겠습니까?`)) {
         approveMutation.mutate({ userId: user.id, role });
       }
     }
@@ -1604,7 +1617,67 @@ export default function AdminDashboard() {
   };
 
   const pendingUsers = users?.filter((u) => !u.is_approved) || [];
-  const displayUsers = memberFilter === 'pending' ? pendingUsers : users || [];
+
+  // 회원 목록: 검색 → 정렬 → 페이지네이션
+  const filteredSortedUsers = (() => {
+    let list = memberFilter === 'pending' ? pendingUsers : users || [];
+
+    // 검색
+    if (memberSearch) {
+      const q = memberSearch.toLowerCase();
+      list = list.filter((u) =>
+        u.username.toLowerCase().includes(q) ||
+        u.email.toLowerCase().includes(q) ||
+        (u.phone && u.phone.includes(q)) ||
+        (u.assigned_club_name && u.assigned_club_name.toLowerCase().includes(q))
+      );
+    }
+
+    // 정렬
+    const { field, dir } = memberSort;
+    list = [...list].sort((a, b) => {
+      let va: string | number = '';
+      let vb: string | number = '';
+      switch (field) {
+        case 'username': va = a.username.toLowerCase(); vb = b.username.toLowerCase(); break;
+        case 'email': va = a.email.toLowerCase(); vb = b.email.toLowerCase(); break;
+        case 'phone': va = (a.phone || '').toLowerCase(); vb = (b.phone || '').toLowerCase(); break;
+        case 'requested_role': va = a.requested_role || ''; vb = b.requested_role || ''; break;
+        case 'role': va = a.role; vb = b.role; break;
+        case 'assigned_club_name': va = a.assigned_club_name || ''; vb = b.assigned_club_name || ''; break;
+        case 'created_at': va = a.created_at; vb = b.created_at; break;
+        case 'is_active': va = a.is_active === false ? 0 : 1; vb = b.is_active === false ? 0 : 1; break;
+        default: va = a.created_at; vb = b.created_at;
+      }
+      if (va < vb) return dir === 'asc' ? -1 : 1;
+      if (va > vb) return dir === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    return list;
+  })();
+
+  const totalFiltered = filteredSortedUsers.length;
+  const totalPages = memberPageSize === 0 ? 1 : Math.max(1, Math.ceil(totalFiltered / memberPageSize));
+  const safePage = Math.min(memberPage, totalPages);
+  const displayUsers = memberPageSize === 0
+    ? filteredSortedUsers
+    : filteredSortedUsers.slice((safePage - 1) * memberPageSize, safePage * memberPageSize);
+
+  const handleMemberSort = (field: string) => {
+    setMemberSort((prev) =>
+      prev.field === field
+        ? { field, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
+        : { field, dir: 'asc' }
+    );
+    setMemberPage(1);
+  };
+
+  const SortIcon = ({ field }: { field: string }) => (
+    <span className="ml-1 text-gray-400">
+      {memberSort.field === field ? (memberSort.dir === 'asc' ? '▲' : '▼') : '⇅'}
+    </span>
+  );
 
   const handleNoticeSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -1638,7 +1711,7 @@ export default function AdminDashboard() {
         setEditingNotice(null);
         setPopupImage([]);
       } catch {
-        alert('저장 중 오류가 발생했습니다.');
+        showAlert('저장 중 오류가 발생했습니다.');
       }
     } else {
       if (editingNotice) {
@@ -1696,7 +1769,7 @@ export default function AdminDashboard() {
       updateAlbumMutation.mutate({ id: editingAlbum.id, data: formData });
     } else {
       if (albumPhotos.length === 0) {
-        alert('사진을 1장 이상 추가해주세요.');
+        showAlert('사진을 1장 이상 추가해주세요.');
         return;
       }
       // 대표로 선택된 사진을 맨 앞으로
@@ -1734,6 +1807,49 @@ export default function AdminDashboard() {
           className="px-2.5 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded-full hover:bg-green-200 transition-colors"
         >
           {APP_VERSION}
+        </button>
+        <button
+          onClick={async () => {
+            if (versionStatus === 'update') {
+              if ('caches' in window) {
+                const names = await caches.keys();
+                await Promise.all(names.map((n) => caches.delete(n)));
+              }
+              if (navigator.serviceWorker) {
+                const regs = await navigator.serviceWorker.getRegistrations();
+                await Promise.all(regs.map((r) => r.unregister()));
+              }
+              window.location.reload();
+              return;
+            }
+            setVersionStatus('checking');
+            try {
+              const res = await fetch('/version.json?t=' + Date.now());
+              const data = await res.json();
+              const current = localStorage.getItem('ddgolf_build');
+              if (current && data.hash !== current) {
+                setVersionStatus('update');
+              } else {
+                setVersionStatus('latest');
+              }
+            } catch {
+              setVersionStatus('latest');
+            }
+          }}
+          className={`px-2 py-1 text-xs rounded-full transition-colors ${
+            versionStatus === 'update'
+              ? 'bg-blue-500 text-white hover:bg-blue-600 animate-pulse'
+              : versionStatus === 'checking'
+                ? 'bg-gray-200 text-gray-400'
+                : 'bg-green-100 text-green-600 hover:bg-green-200'
+          }`}
+          disabled={versionStatus === 'checking'}
+        >
+          {versionStatus === 'update'
+            ? '새버전 확인 →'
+            : versionStatus === 'checking'
+              ? '확인 중...'
+              : '✓ 최신버전'}
         </button>
       </div>
 
@@ -1998,27 +2114,48 @@ export default function AdminDashboard() {
 
           {/* Member Filter */}
           <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex gap-4 mb-4">
-              <button
-                onClick={() => setMemberFilter('pending')}
-                className={`pb-2 border-b-2 text-sm ${
-                  memberFilter === 'pending'
-                    ? 'border-green-600 text-green-600'
-                    : 'border-transparent text-gray-500'
-                }`}
-              >
-                승인 대기 ({pendingUsers.length})
-              </button>
-              <button
-                onClick={() => setMemberFilter('all')}
-                className={`pb-2 border-b-2 text-sm ${
-                  memberFilter === 'all'
-                    ? 'border-green-600 text-green-600'
-                    : 'border-transparent text-gray-500'
-                }`}
-              >
-                전체 회원
-              </button>
+            <div className="flex flex-wrap gap-4 mb-4 items-center justify-between">
+              <div className="flex gap-4">
+                <button
+                  onClick={() => { setMemberFilter('pending'); setMemberPage(1); }}
+                  className={`pb-2 border-b-2 text-sm ${
+                    memberFilter === 'pending'
+                      ? 'border-green-600 text-green-600'
+                      : 'border-transparent text-gray-500'
+                  }`}
+                >
+                  승인 대기 ({pendingUsers.length})
+                </button>
+                <button
+                  onClick={() => { setMemberFilter('all'); setMemberPage(1); }}
+                  className={`pb-2 border-b-2 text-sm ${
+                    memberFilter === 'all'
+                      ? 'border-green-600 text-green-600'
+                      : 'border-transparent text-gray-500'
+                  }`}
+                >
+                  전체 회원
+                </button>
+              </div>
+              <div className="flex gap-2 items-center">
+                <input
+                  type="text"
+                  value={memberSearch}
+                  onChange={(e) => { setMemberSearch(e.target.value); setMemberPage(1); }}
+                  placeholder="이름, 이메일, 전화번호, 클럽 검색..."
+                  className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-green-500 focus:border-green-500 w-56"
+                />
+                <select
+                  value={memberPageSize}
+                  onChange={(e) => { setMemberPageSize(Number(e.target.value)); setMemberPage(1); }}
+                  className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm"
+                >
+                  <option value={20}>20명</option>
+                  <option value={50}>50명</option>
+                  <option value={100}>100명</option>
+                  <option value={0}>전체</option>
+                </select>
+              </div>
             </div>
 
             {displayUsers.length > 0 ? (
@@ -2026,23 +2163,25 @@ export default function AdminDashboard() {
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">이름</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">이메일</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">전화번호</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">신청 역할</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">현재 역할</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">클럽 배정</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">가입일</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">관리</th>
+                      <th className="px-1 py-2 text-left text-xs font-medium text-gray-500 whitespace-nowrap w-8">No.</th>
+                      <th onClick={() => handleMemberSort('username')} className="px-2 py-2 text-left text-xs font-medium text-gray-500 whitespace-nowrap cursor-pointer hover:text-gray-700 select-none">이름<SortIcon field="username" /></th>
+                      <th onClick={() => handleMemberSort('email')} className="px-2 py-2 text-left text-xs font-medium text-gray-500 whitespace-nowrap cursor-pointer hover:text-gray-700 select-none">이메일<SortIcon field="email" /></th>
+                      <th onClick={() => handleMemberSort('phone')} className="px-2 py-2 text-left text-xs font-medium text-gray-500 whitespace-nowrap cursor-pointer hover:text-gray-700 select-none">전화번호<SortIcon field="phone" /></th>
+                      <th onClick={() => handleMemberSort('requested_role')} className="px-2 py-2 text-left text-xs font-medium text-gray-500 whitespace-nowrap cursor-pointer hover:text-gray-700 select-none">신청<SortIcon field="requested_role" /></th>
+                      <th onClick={() => handleMemberSort('role')} className="px-2 py-2 text-left text-xs font-medium text-gray-500 whitespace-nowrap cursor-pointer hover:text-gray-700 select-none">역할<SortIcon field="role" /></th>
+                      <th onClick={() => handleMemberSort('assigned_club_name')} className="px-2 py-2 text-left text-xs font-medium text-gray-500 whitespace-nowrap cursor-pointer hover:text-gray-700 select-none">클럽<SortIcon field="assigned_club_name" /></th>
+                      <th onClick={() => handleMemberSort('created_at')} className="px-2 py-2 text-left text-xs font-medium text-gray-500 whitespace-nowrap cursor-pointer hover:text-gray-700 select-none">가입일<SortIcon field="created_at" /></th>
+                      <th onClick={() => handleMemberSort('is_active')} className="px-2 py-2 text-left text-xs font-medium text-gray-500 whitespace-nowrap cursor-pointer hover:text-gray-700 select-none">관리<SortIcon field="is_active" /></th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {displayUsers.map((user) => (
+                    {displayUsers.map((user, idx) => (
                       <tr key={user.id}>
-                        <td className="px-4 py-3 text-sm font-medium whitespace-nowrap">{user.username}</td>
-                        <td className="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">{user.email}</td>
-                        <td className="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">{user.phone || '-'}</td>
-                        <td className="px-4 py-3 whitespace-nowrap">
+                        <td className="px-1 py-2 text-xs text-gray-400 whitespace-nowrap w-8">{memberPageSize === 0 ? idx + 1 : (safePage - 1) * memberPageSize + idx + 1}</td>
+                        <td className="px-2 py-2 text-sm font-medium whitespace-nowrap">{user.username}</td>
+                        <td className="px-2 py-2 text-xs text-gray-500 whitespace-nowrap">{user.email}</td>
+                        <td className="px-2 py-2 text-xs text-gray-500 whitespace-nowrap">{user.phone || '-'}</td>
+                        <td className="px-2 py-2 whitespace-nowrap">
                           <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
                             user.requested_role === 'instructor'
                               ? 'bg-purple-100 text-purple-800'
@@ -2056,27 +2195,27 @@ export default function AdminDashboard() {
                             </span>
                           )}
                         </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
+                        <td className="px-2 py-2 whitespace-nowrap">
                           {user.is_approved ? (
                             <select
                               value={user.role}
-                              onChange={(e) => {
-                                if (window.confirm(`역할을 변경하시겠습니까?`)) {
+                              onChange={async (e) => {
+                                if (await showConfirm(`역할을 변경하시겠습니까?`)) {
                                   changeRoleMutation.mutate({ userId: user.id, role: e.target.value });
                                 }
                               }}
                               disabled={user.role === 'admin'}
-                              className="text-xs border border-gray-300 rounded px-2 py-1"
+                              className="text-xs border border-gray-300 rounded px-1 py-0.5"
                             >
                               <option value="admin">관리자</option>
                               <option value="instructor">클럽장</option>
-                              <option value="member">일반 회원</option>
+                              <option value="member">회원</option>
                             </select>
                           ) : (
-                            <span className="text-xs text-gray-400">승인대기</span>
+                            <span className="text-xs text-gray-400">대기</span>
                           )}
                         </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
+                        <td className="px-2 py-2 whitespace-nowrap">
                           {user.is_approved && user.role !== 'admin' ? (
                             <ClubAssignSelect
                               currentClubId={user.assigned_club || null}
@@ -2088,14 +2227,14 @@ export default function AdminDashboard() {
                           ) : user.role === 'admin' ? (
                             <span className="text-xs text-gray-400">-</span>
                           ) : (
-                            <span className={`inline-flex px-2 py-0.5 text-xs rounded-full ${user.wants_club_membership ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-500'}`}>
-                              {user.requested_club_name || (user.wants_club_membership ? '클럽 희망' : '-')}
+                            <span className={`inline-flex px-1 py-0.5 text-xs rounded-full ${user.wants_club_membership ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-500'}`}>
+                              {user.requested_club_name || (user.wants_club_membership ? '희망' : '-')}
                             </span>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">{new Date(user.created_at).toLocaleDateString()}</td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <div className="flex gap-2">
+                        <td className="px-2 py-2 text-xs text-gray-500 whitespace-nowrap">{new Date(user.created_at).toLocaleDateString()}</td>
+                        <td className="px-2 py-2 whitespace-nowrap">
+                          <div className="flex gap-1">
                             {!user.is_approved && (
                               <>
                                 <button
@@ -2115,8 +2254,8 @@ export default function AdminDashboard() {
                                   </button>
                                 )}
                                 <button
-                                  onClick={() => {
-                                    if (window.confirm(`${user.username}님의 가입 신청을 삭제하시겠습니까?`)) {
+                                  onClick={async () => {
+                                    if (await showConfirm(`${user.username}님의 가입 신청을 삭제하시겠습니까?`)) {
                                       deleteUserMutation.mutate(user.id);
                                     }
                                   }}
@@ -2128,34 +2267,47 @@ export default function AdminDashboard() {
                               </>
                             )}
                             {user.role !== 'admin' && user.is_approved && (
-                              <select
-                                value={user.is_active === false ? 'blocked' : 'active'}
-                                onChange={(e) => {
-                                  const newVal = e.target.value;
-                                  if (newVal === 'blocked' && user.is_active !== false) {
-                                    if (window.confirm('정말 차단하시겠습니까?')) {
-                                      blockMutation.mutate(user.id);
-                                    } else {
-                                      e.target.value = 'active';
+                              <>
+                                <select
+                                  value={user.is_active === false ? 'blocked' : 'active'}
+                                  onChange={async (e) => {
+                                    const newVal = e.target.value;
+                                    if (newVal === 'blocked' && user.is_active !== false) {
+                                      if (await showConfirm('정말 차단하시겠습니까?')) {
+                                        blockMutation.mutate(user.id);
+                                      } else {
+                                        e.target.value = 'active';
+                                      }
+                                    } else if (newVal === 'active' && user.is_active === false) {
+                                      if (await showConfirm('차단을 해제하시겠습니까?')) {
+                                        unblockMutation.mutate(user.id);
+                                      } else {
+                                        e.target.value = 'blocked';
+                                      }
                                     }
-                                  } else if (newVal === 'active' && user.is_active === false) {
-                                    if (window.confirm('차단을 해제하시겠습니까?')) {
-                                      unblockMutation.mutate(user.id);
-                                    } else {
-                                      e.target.value = 'blocked';
+                                  }}
+                                  disabled={blockMutation.isPending || unblockMutation.isPending}
+                                  className={`text-xs border rounded px-2 py-1 ${
+                                    user.is_active === false
+                                      ? 'border-red-300 text-red-700 bg-red-50'
+                                      : 'border-gray-300 text-gray-700'
+                                  }`}
+                                >
+                                  <option value="active">정상</option>
+                                  <option value="blocked">차단</option>
+                                </select>
+                                <button
+                                  onClick={async () => {
+                                    if (await showConfirm(`${user.username}님을 삭제하시겠습니까?\n클럽 소속 및 모든 데이터가 삭제됩니다.`)) {
+                                      deleteUserMutation.mutate(user.id);
                                     }
-                                  }
-                                }}
-                                disabled={blockMutation.isPending || unblockMutation.isPending}
-                                className={`text-xs border rounded px-2 py-1 ${
-                                  user.is_active === false
-                                    ? 'border-red-300 text-red-700 bg-red-50'
-                                    : 'border-gray-300 text-gray-700'
-                                }`}
-                              >
-                                <option value="active">정상</option>
-                                <option value="blocked">차단</option>
-                              </select>
+                                  }}
+                                  disabled={deleteUserMutation.isPending}
+                                  className="px-2 py-1 text-xs bg-red-100 text-red-700 hover:bg-red-200 rounded"
+                                >
+                                  삭제
+                                </button>
+                              </>
                             )}
                           </div>
                         </td>
@@ -2166,8 +2318,69 @@ export default function AdminDashboard() {
               </div>
             ) : (
               <p className="text-gray-500 text-center py-8">
-                {memberFilter === 'pending' ? '승인 대기 중인 회원이 없습니다.' : '등록된 회원이 없습니다.'}
+                {memberSearch ? '검색 결과가 없습니다.' : memberFilter === 'pending' ? '승인 대기 중인 회원이 없습니다.' : '등록된 회원이 없습니다.'}
               </p>
+            )}
+
+            {/* 페이지네이션 */}
+            {memberPageSize !== 0 && totalFiltered > 0 && (
+              <div className="flex justify-between items-center mt-4 pt-4 border-t border-gray-200">
+                <span className="text-sm text-gray-500">
+                  전체 {totalFiltered}명 중 {(safePage - 1) * memberPageSize + 1}-{Math.min(safePage * memberPageSize, totalFiltered)}명
+                </span>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => setMemberPage(1)}
+                    disabled={safePage <= 1}
+                    className="px-2 py-1 text-sm border rounded hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    &#171;
+                  </button>
+                  <button
+                    onClick={() => setMemberPage(safePage - 1)}
+                    disabled={safePage <= 1}
+                    className="px-2 py-1 text-sm border rounded hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    &#8249;
+                  </button>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1)
+                    .filter((p) => p === 1 || p === totalPages || Math.abs(p - safePage) <= 2)
+                    .reduce<(number | string)[]>((acc, p, i, arr) => {
+                      if (i > 0 && p - (arr[i - 1] as number) > 1) acc.push('...');
+                      acc.push(p);
+                      return acc;
+                    }, [])
+                    .map((p, i) =>
+                      typeof p === 'string' ? (
+                        <span key={`dot-${i}`} className="px-2 py-1 text-sm text-gray-400">...</span>
+                      ) : (
+                        <button
+                          key={p}
+                          onClick={() => setMemberPage(p)}
+                          className={`px-3 py-1 text-sm border rounded ${
+                            safePage === p ? 'bg-green-600 text-white border-green-600' : 'hover:bg-gray-50'
+                          }`}
+                        >
+                          {p}
+                        </button>
+                      )
+                    )}
+                  <button
+                    onClick={() => setMemberPage(safePage + 1)}
+                    disabled={safePage >= totalPages}
+                    className="px-2 py-1 text-sm border rounded hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    &#8250;
+                  </button>
+                  <button
+                    onClick={() => setMemberPage(totalPages)}
+                    disabled={safePage >= totalPages}
+                    className="px-2 py-1 text-sm border rounded hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    &#187;
+                  </button>
+                </div>
+              </div>
             )}
           </div>
         </div>
@@ -2448,8 +2661,8 @@ export default function AdminDashboard() {
                           className="px-1.5 py-0.5 text-[10px] bg-blue-100 text-blue-700 hover:bg-blue-200 rounded"
                         >수정</button>
                         <button
-                          onClick={() => {
-                            if (window.confirm(`"${exec.name}" 임원을 삭제하시겠습니까?`)) {
+                          onClick={async () => {
+                            if (await showConfirm(`"${exec.name}" 임원을 삭제하시겠습니까?`)) {
                               deleteExecutiveMutation.mutate(exec.id);
                             }
                           }}
@@ -2579,8 +2792,8 @@ export default function AdminDashboard() {
                         수정
                       </button>
                       <button
-                        onClick={() => {
-                          if (window.confirm(`"${item.year} - ${item.content}" 연혁을 삭제하시겠습니까?`)) {
+                        onClick={async () => {
+                          if (await showConfirm(`"${item.year} - ${item.content}" 연혁을 삭제하시겠습니까?`)) {
                             deleteHistoryMutation.mutate(item.id);
                           }
                         }}
@@ -2603,7 +2816,7 @@ export default function AdminDashboard() {
       {activeTab === 'notices' && (
         <div className="bg-white rounded-lg shadow">
           <div className="p-4 border-b border-gray-200 flex justify-between items-center">
-            <h2 className="text-lg font-semibold">공지사항 목록</h2>
+            <h2 className="text-lg font-semibold">공지사항 목록 ({notices?.length || 0})</h2>
             <button
               onClick={() => {
                 setShowNoticeForm(!showNoticeForm);
@@ -2618,6 +2831,15 @@ export default function AdminDashboard() {
             >
               {showNoticeForm ? '취소' : '새 공지사항'}
             </button>
+          </div>
+          <div className="px-4 py-2 border-b border-gray-200">
+            <input
+              type="text"
+              placeholder="공지사항 검색 (제목, 작성자)"
+              value={noticeSearch}
+              onChange={e => setNoticeSearch(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-green-500 focus:border-green-500"
+            />
           </div>
 
           {showNoticeForm && (
@@ -2730,10 +2952,19 @@ export default function AdminDashboard() {
             ) : noticesError ? (
               <div className="p-8 text-center text-red-500">공지사항을 불러오는 중 오류가 발생했습니다. 새로고침해 주세요.</div>
             ) : notices && notices.length > 0 ? (
-              notices.map((notice) => (
+              (() => {
+                const filtered = noticeSearch
+                  ? notices.filter((n) => {
+                      const q = noticeSearch.toLowerCase();
+                      return n.title.toLowerCase().includes(q) || (n.author?.username && n.author.username.toLowerCase().includes(q));
+                    })
+                  : notices;
+                if (filtered.length === 0) return <div className="p-8 text-center text-gray-500">검색 결과가 없습니다.</div>;
+                return filtered.map((notice, idx) => (
                 <div key={notice.id} className={`p-4 flex justify-between items-center ${notice.is_hidden ? 'bg-gray-100' : ''}`}>
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm text-gray-400 font-mono w-6">{idx + 1}</span>
                       <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${
                         notice.visibility === 'public' ? 'bg-blue-100 text-blue-800' : notice.visibility === 'club' ? 'bg-green-100 text-green-800' : 'bg-purple-100 text-purple-800'
                       }`}>
@@ -2777,8 +3008,8 @@ export default function AdminDashboard() {
                       {notice.is_hidden ? '표시' : '숨김'}
                     </button>
                     <button
-                      onClick={() => {
-                        if (window.confirm('정말 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) {
+                      onClick={async () => {
+                        if (await showConfirm('정말 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) {
                           deleteNoticeMutation.mutate(notice.id);
                         }
                       }}
@@ -2788,7 +3019,8 @@ export default function AdminDashboard() {
                     </button>
                   </div>
                 </div>
-              ))
+              ));
+              })()
             ) : (
               <div className="p-8 text-center text-gray-500">공지사항이 없습니다.</div>
             )}
@@ -2800,7 +3032,7 @@ export default function AdminDashboard() {
       {activeTab === 'schedule' && (
         <div className="bg-white rounded-lg shadow">
           <div className="p-4 border-b border-gray-200 flex justify-between items-center">
-            <h2 className="text-lg font-semibold">경기일정 목록</h2>
+            <h2 className="text-lg font-semibold">경기일정 목록 ({events?.length || 0})</h2>
             <button
               onClick={() => {
                 setEditingEvent(null);
@@ -2810,6 +3042,15 @@ export default function AdminDashboard() {
             >
               {showEventForm && !editingEvent ? '취소' : '새 일정'}
             </button>
+          </div>
+          <div className="px-4 py-2 border-b border-gray-200">
+            <input
+              type="text"
+              placeholder="일정 검색 (제목, 장소)"
+              value={scheduleSearch}
+              onChange={e => setScheduleSearch(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-green-500 focus:border-green-500"
+            />
           </div>
 
           {(showEventForm || editingEvent) && (
@@ -2950,11 +3191,20 @@ export default function AdminDashboard() {
             {eventsLoading ? (
               <div className="p-8 text-center text-gray-500">로딩 중...</div>
             ) : events && events.length > 0 ? (
-              events.map((event) => (
+              (() => {
+                const filtered = scheduleSearch
+                  ? events.filter((e) => {
+                      const q = scheduleSearch.toLowerCase();
+                      return e.title.toLowerCase().includes(q) || (e.location && e.location.toLowerCase().includes(q));
+                    })
+                  : events;
+                if (filtered.length === 0) return <div className="p-8 text-center text-gray-500">검색 결과가 없습니다.</div>;
+                return filtered.map((event, idx) => (
                 <div key={event.id}>
                   <div className="p-4 flex justify-between items-center">
                     <div>
                       <div className="flex items-center gap-2">
+                        <span className="text-sm text-gray-400 font-mono w-6">{idx + 1}</span>
                         <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${
                           event.event_type === 'match' ? 'bg-green-100 text-green-800' :
                           event.event_type === 'tournament' ? 'bg-yellow-100 text-yellow-800' :
@@ -3021,8 +3271,8 @@ export default function AdminDashboard() {
                         수정
                       </button>
                       <button
-                        onClick={() => {
-                          if (window.confirm('정말 삭제하시겠습니까?')) {
+                        onClick={async () => {
+                          if (await showConfirm('정말 삭제하시겠습니까?')) {
                             deleteEventMutation.mutate(event.id);
                           }
                         }}
@@ -3048,7 +3298,7 @@ export default function AdminDashboard() {
                               a.click();
                               window.URL.revokeObjectURL(url);
                             } catch {
-                              alert('다운로드에 실패했습니다.');
+                              showAlert('다운로드에 실패했습니다.');
                             }
                           }}
                           className="px-3 py-1.5 rounded text-sm bg-blue-600 text-white hover:bg-blue-700"
@@ -3146,7 +3396,8 @@ export default function AdminDashboard() {
                     </div>
                   )}
                 </div>
-              ))
+              ));
+              })()
             ) : (
               <div className="p-8 text-center text-gray-500">등록된 일정이 없습니다.</div>
             )}
@@ -3238,12 +3489,12 @@ export default function AdminDashboard() {
                         수정
                       </button>
                       <button
-                        onClick={() => {
+                        onClick={async () => {
                           if (cat.album_count > 0) {
-                            alert('앨범이 포함된 카테고리는 삭제할 수 없습니다. 앨범의 카테고리를 먼저 변경해주세요.');
+                            showAlert('앨범이 포함된 카테고리는 삭제할 수 없습니다. 앨범의 카테고리를 먼저 변경해주세요.');
                             return;
                           }
-                          if (confirm(`"${cat.name}" 카테고리를 삭제하시겠습니까?`)) {
+                          if (await showConfirm(`"${cat.name}" 카테고리를 삭제하시겠습니까?`)) {
                             deleteGalleryCategoryMutation.mutate(cat.id);
                           }
                         }}
@@ -3411,8 +3662,8 @@ export default function AdminDashboard() {
                                 )}
                                 <button
                                   type="button"
-                                  onClick={() => {
-                                    if (window.confirm('이 사진을 삭제하시겠습니까?')) {
+                                  onClick={async () => {
+                                    if (await showConfirm('이 사진을 삭제하시겠습니까?')) {
                                       deletePhotoMutation.mutate({ albumId: editingAlbum.id, photoId: photo.id });
                                     }
                                   }}
@@ -3566,8 +3817,8 @@ export default function AdminDashboard() {
                         {album.is_hidden ? '표시' : '숨김'}
                       </button>
                       <button
-                        onClick={() => {
-                          if (window.confirm('정말 삭제하시겠습니까? 앨범 내 모든 사진도 함께 삭제됩니다.')) {
+                        onClick={async () => {
+                          if (await showConfirm('정말 삭제하시겠습니까? 앨범 내 모든 사진도 함께 삭제됩니다.')) {
                             deleteAlbumMutation.mutate(album.id);
                           }
                         }}
@@ -3590,14 +3841,23 @@ export default function AdminDashboard() {
       {activeTab === 'messenger' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="bg-white rounded-lg shadow">
-            <div className="p-4 border-b border-gray-200 flex justify-between items-center">
-              <h2 className="text-lg font-semibold">클럽 목록</h2>
-              <button
-                onClick={() => setShowCreateClubForm(!showCreateClubForm)}
-                className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700"
-              >
-                새 클럽 만들기
-              </button>
+            <div className="p-4 border-b border-gray-200 space-y-2">
+              <div className="flex justify-between items-center">
+                <h2 className="text-lg font-semibold">클럽 목록 ({chatRooms?.length || 0})</h2>
+                <button
+                  onClick={() => setShowCreateClubForm(!showCreateClubForm)}
+                  className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700"
+                >
+                  새 클럽 만들기
+                </button>
+              </div>
+              <input
+                type="text"
+                value={clubListSearch}
+                onChange={(e) => setClubListSearch(e.target.value)}
+                placeholder="클럽명 검색..."
+                className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-green-500 focus:border-green-500"
+              />
             </div>
             {showCreateClubForm && (
               <div className="p-4 border-b border-gray-200 bg-gray-50">
@@ -3649,10 +3909,14 @@ export default function AdminDashboard() {
               </div>
             )}
             <div className="divide-y divide-gray-200 max-h-96 overflow-y-auto">
-              {roomsLoading ? (
+              {(() => {
+                const filteredRooms = clubListSearch
+                  ? chatRooms?.filter((r) => r.name.toLowerCase().includes(clubListSearch.toLowerCase()))
+                  : chatRooms;
+                return roomsLoading ? (
                 <div className="p-8 text-center text-gray-500">로딩 중...</div>
-              ) : chatRooms && chatRooms.length > 0 ? (
-                chatRooms.map((room) => (
+              ) : filteredRooms && filteredRooms.length > 0 ? (
+                filteredRooms.map((room, idx) => (
                   <div
                     key={room.id}
                     className={`p-4 hover:bg-gray-50 ${selectedRoom === room.id ? 'bg-green-50' : ''}`}
@@ -3667,6 +3931,7 @@ export default function AdminDashboard() {
                         }}
                         className="flex-1 text-left flex items-center gap-3"
                       >
+                        <span className="text-xs text-gray-400 w-5 text-right flex-shrink-0">{idx + 1}</span>
                         {room.icon ? (
                           <img src={room.icon} alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
                         ) : (
@@ -3699,8 +3964,8 @@ export default function AdminDashboard() {
                           수정
                         </button>
                         <button
-                          onClick={() => {
-                            if (window.confirm(`"${room.name}" 클럽의 모든 메시지를 삭제하시겠습니까?\n클럽은 유지됩니다.`)) {
+                          onClick={async () => {
+                            if (await showConfirm(`"${room.name}" 클럽의 모든 메시지를 삭제하시겠습니까?\n클럽은 유지됩니다.`)) {
                               clearMessagesMutation.mutate(room.id);
                             }
                           }}
@@ -3709,8 +3974,8 @@ export default function AdminDashboard() {
                           기록 삭제
                         </button>
                         <button
-                          onClick={() => {
-                            if (window.confirm(`"${room.name}" 클럽을 삭제하시겠습니까?\n모든 메시지가 함께 삭제됩니다.`)) {
+                          onClick={async () => {
+                            if (await showConfirm(`"${room.name}" 클럽을 삭제하시겠습니까?\n모든 메시지가 함께 삭제됩니다.`)) {
                               deleteChatRoomMutation.mutate(room.id);
                             }
                           }}
@@ -3723,8 +3988,9 @@ export default function AdminDashboard() {
                   </div>
                 ))
               ) : (
-                <div className="p-8 text-center text-gray-500">클럽이 없습니다.</div>
-              )}
+                <div className="p-8 text-center text-gray-500">{clubListSearch ? '검색 결과가 없습니다.' : '클럽이 없습니다.'}</div>
+              );
+              })()}
             </div>
           </div>
 
@@ -3933,8 +4199,8 @@ export default function AdminDashboard() {
                         {clubSearchResults.map((u) => (
                           <button
                             key={u.id}
-                            onClick={() => {
-                              if (window.confirm(`${u.username}님을 이 클럽에 추가하시겠습니까?`)) {
+                            onClick={async () => {
+                              if (await showConfirm(`${u.username}님을 이 클럽에 추가하시겠습니까?`)) {
                                 inviteMemberMutation.mutate({ roomId: selectedRoom!, userId: u.id });
                               }
                             }}
@@ -3982,8 +4248,8 @@ export default function AdminDashboard() {
                               <td className="px-4 py-2 text-sm whitespace-nowrap">
                                 {member.role !== 'admin' && (
                                   <button
-                                    onClick={() => {
-                                      if (window.confirm(`${member.username}님을 이 클럽에서 삭제하시겠습니까?`)) {
+                                    onClick={async () => {
+                                      if (await showConfirm(`${member.username}님을 이 클럽에서 삭제하시겠습니까?`)) {
                                         kickMemberMutation.mutate({ roomId: selectedRoom!, userId: member.id });
                                       }
                                     }}
@@ -4042,6 +4308,7 @@ export default function AdminDashboard() {
                   roomId={selectedRoom}
                   users={roomMembersList?.filter((u) => u.role !== 'admin') || []}
                   onSuccess={() => queryClient.invalidateQueries({ queryKey: ['adminActiveBans'] })}
+                  showAlert={showAlert}
                 />
               </div>
             </>
@@ -4124,6 +4391,7 @@ export default function AdminDashboard() {
                   roomId={banTabRoom as number}
                   users={banTabMembers?.filter((u) => u.role !== 'admin') || []}
                   onSuccess={() => queryClient.invalidateQueries({ queryKey: ['adminActiveBans'] })}
+                  showAlert={showAlert}
                 />
               )}
               {banTabRoom === '' && (
@@ -4212,7 +4480,7 @@ export default function AdminDashboard() {
       {activeTab === 'banners' && (
         <div className="bg-white rounded-lg shadow">
           <div className="p-4 border-b border-gray-200 flex justify-between items-center">
-            <h2 className="text-lg font-semibold">배너 목록</h2>
+            <h2 className="text-lg font-semibold">배너 목록 ({banners?.length || 0})</h2>
             <button
               onClick={() => {
                 if (showBannerForm && !editingBanner) {
@@ -4226,6 +4494,15 @@ export default function AdminDashboard() {
             >
               {showBannerForm && !editingBanner ? '취소' : '새 배너'}
             </button>
+          </div>
+          <div className="px-4 py-2 border-b border-gray-200">
+            <input
+              type="text"
+              placeholder="배너 검색 (문구, 전화번호)"
+              value={bannerSearch}
+              onChange={e => setBannerSearch(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-green-500 focus:border-green-500"
+            />
           </div>
 
           {(showBannerForm || editingBanner) && (
@@ -4343,9 +4620,18 @@ export default function AdminDashboard() {
             {bannersLoading ? (
               <div className="p-8 text-center text-gray-500">로딩 중...</div>
             ) : banners && banners.length > 0 ? (
-              banners.map((banner, index) => (
+              (() => {
+                const filtered = bannerSearch
+                  ? banners.filter((b) => {
+                      const q = bannerSearch.toLowerCase();
+                      return b.description.toLowerCase().includes(q) || (b.phone_number && b.phone_number.includes(q));
+                    })
+                  : banners;
+                if (filtered.length === 0) return <div className="p-8 text-center text-gray-500">검색 결과가 없습니다.</div>;
+                return filtered.map((banner, index) => (
                 <div key={banner.id} className={`p-4 flex justify-between items-center ${!banner.is_active ? 'bg-gray-100' : ''}`}>
                   <div className="flex items-center gap-4">
+                    <span className="text-sm text-gray-400 font-mono w-6">{index + 1}</span>
                     <img src={banner.image} alt={banner.description} className="w-24 h-16 object-cover rounded" />
                     <div>
                       <div className="flex items-center gap-2">
@@ -4392,8 +4678,8 @@ export default function AdminDashboard() {
                       아래
                     </button>
                     <button
-                      onClick={() => {
-                        if (window.confirm('정말 삭제하시겠습니까?')) {
+                      onClick={async () => {
+                        if (await showConfirm('정말 삭제하시겠습니까?')) {
                           deleteBannerMutation.mutate(banner.id);
                         }
                       }}
@@ -4403,7 +4689,8 @@ export default function AdminDashboard() {
                     </button>
                   </div>
                 </div>
-              ))
+              ));
+              })()
             ) : (
               <div className="p-8 text-center text-gray-500">배너가 없습니다.</div>
             )}
@@ -4416,7 +4703,7 @@ export default function AdminDashboard() {
         <div className="bg-white rounded-lg shadow">
           <div className="p-4 border-b border-gray-200 flex justify-between items-center">
             <div className="flex items-center gap-4">
-              <h2 className="text-lg font-semibold">유관기관 목록</h2>
+              <h2 className="text-lg font-semibold">유관기관 목록 ({organizations?.length || 0})</h2>
               <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
                 <input
                   type="checkbox"
@@ -4439,6 +4726,15 @@ export default function AdminDashboard() {
             >
               {showOrgForm && !editingOrg ? '취소' : '새 유관기관'}
             </button>
+          </div>
+          <div className="px-4 py-2 border-b border-gray-200">
+            <input
+              type="text"
+              placeholder="유관기관 검색 (기관명)"
+              value={orgSearch}
+              onChange={e => setOrgSearch(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-green-500 focus:border-green-500"
+            />
           </div>
 
           {(showOrgForm || editingOrg) && (
@@ -4530,9 +4826,15 @@ export default function AdminDashboard() {
             {orgsLoading ? (
               <div className="p-8 text-center text-gray-500">로딩 중...</div>
             ) : organizations && organizations.length > 0 ? (
-              organizations.map((org, index) => (
+              (() => {
+                const filtered = orgSearch
+                  ? organizations.filter((o) => o.name.toLowerCase().includes(orgSearch.toLowerCase()))
+                  : organizations;
+                if (filtered.length === 0) return <div className="p-8 text-center text-gray-500">검색 결과가 없습니다.</div>;
+                return filtered.map((org, index) => (
                 <div key={org.id} className={`p-4 flex justify-between items-center ${!org.is_active ? 'bg-gray-100' : ''}`}>
                   <div className="flex items-center gap-4">
+                    <span className="text-sm text-gray-400 font-mono w-6">{index + 1}</span>
                     <img src={org.logo} alt={org.name} className="object-contain rounded border" style={{ width: '160px', height: '56px' }} />
                     <div>
                       <div className="flex items-center gap-2">
@@ -4575,8 +4877,8 @@ export default function AdminDashboard() {
                       아래
                     </button>
                     <button
-                      onClick={() => {
-                        if (window.confirm('정말 삭제하시겠습니까?')) {
+                      onClick={async () => {
+                        if (await showConfirm('정말 삭제하시겠습니까?')) {
                           deleteOrgMutation.mutate(org.id);
                         }
                       }}
@@ -4586,7 +4888,8 @@ export default function AdminDashboard() {
                     </button>
                   </div>
                 </div>
-              ))
+              ));
+              })()
             ) : (
               <div className="p-8 text-center text-gray-500">유관기관이 없습니다.</div>
             )}
@@ -4677,12 +4980,12 @@ export default function AdminDashboard() {
                         수정
                       </button>
                       <button
-                        onClick={() => {
+                        onClick={async () => {
                           if (cat.documents.length > 0) {
-                            alert('서식이 포함된 카테고리는 삭제할 수 없습니다. 서식을 먼저 삭제해주세요.');
+                            showAlert('서식이 포함된 카테고리는 삭제할 수 없습니다. 서식을 먼저 삭제해주세요.');
                             return;
                           }
-                          if (confirm(`"${cat.name}" 카테고리를 삭제하시겠습니까?`)) {
+                          if (await showConfirm(`"${cat.name}" 카테고리를 삭제하시겠습니까?`)) {
                             deleteDocCategoryMutation.mutate(cat.id);
                           }
                         }}
@@ -4706,7 +5009,7 @@ export default function AdminDashboard() {
               <button
                 onClick={() => {
                   if (!docCategories || docCategories.length === 0) {
-                    alert('카테고리를 먼저 등록해주세요.');
+                    showAlert('카테고리를 먼저 등록해주세요.');
                     return;
                   }
                   setShowDocForm(!showDocForm);
@@ -4718,6 +5021,15 @@ export default function AdminDashboard() {
               >
                 {showDocForm && !editingDoc ? '취소' : '서식 등록'}
               </button>
+            </div>
+            <div className="px-4 py-2 border-b border-gray-200">
+              <input
+                type="text"
+                placeholder="서식 검색 (제목, 설명)"
+                value={docSearch}
+                onChange={e => setDocSearch(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-green-500 focus:border-green-500"
+              />
             </div>
 
             {(showDocForm || editingDoc) && (
@@ -4734,7 +5046,7 @@ export default function AdminDashboard() {
                   if (docFiles.length > 0) {
                     docFiles.forEach((file) => formData.append('files', file));
                   } else if (!editingDoc) {
-                    alert('파일을 선택해주세요.');
+                    showAlert('파일을 선택해주세요.');
                     return;
                   }
 
@@ -4825,8 +5137,8 @@ export default function AdminDashboard() {
                             )}
                             <button
                               type="button"
-                              onClick={() => {
-                                if (confirm(`"${ef.original_name}" 파일을 삭제하시겠습니까?`)) {
+                              onClick={async () => {
+                                if (await showConfirm(`"${ef.original_name}" 파일을 삭제하시겠습니까?`)) {
                                   deleteDocFileMutation.mutate({ docId: editingDoc.id, fileId: ef.id });
                                 }
                               }}
@@ -4867,11 +5179,19 @@ export default function AdminDashboard() {
               {docCategoriesLoading ? (
                 <div className="p-8 text-center text-gray-500">로딩 중...</div>
               ) : docCategories && docCategories.some(c => c.documents.length > 0) ? (
-                docCategories.map((cat) =>
-                  cat.documents.length > 0 && (
+                (() => {
+                  const q = docSearch.toLowerCase();
+                  const filteredCats = docCategories.map((cat) => ({
+                    ...cat,
+                    documents: q
+                      ? cat.documents.filter((d) => d.title.toLowerCase().includes(q) || (d.description && d.description.toLowerCase().includes(q)))
+                      : cat.documents,
+                  })).filter((cat) => cat.documents.length > 0);
+                  if (filteredCats.length === 0) return <div className="p-8 text-center text-gray-500">검색 결과가 없습니다.</div>;
+                  return filteredCats.map((cat) => (
                     <div key={cat.id}>
                       <div className="px-4 py-2 bg-gray-50 border-b">
-                        <span className="text-sm font-semibold text-gray-600">{cat.name}</span>
+                        <span className="text-sm font-semibold text-gray-600">{cat.name} ({cat.documents.length})</span>
                       </div>
                       {cat.documents.map((doc, idx) => {
                         const thumbFile = doc.thumbnail_id ? doc.files.find(f => f.id === doc.thumbnail_id) : null;
@@ -4879,6 +5199,7 @@ export default function AdminDashboard() {
                         return (
                         <div key={doc.id} className="p-4 flex justify-between items-center">
                           <div className="flex items-center gap-3">
+                            <span className="text-sm text-gray-400 font-mono w-6">{idx + 1}</span>
                             {thumbFile && /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(thumbFile.original_name) ? (
                               <img src={thumbFile.file} alt="" className="w-12 h-12 rounded object-cover border" />
                             ) : (
@@ -4932,8 +5253,8 @@ export default function AdminDashboard() {
                               수정
                             </button>
                             <button
-                              onClick={() => {
-                                if (confirm(`"${doc.title}" 서식을 삭제하시겠습니까?`)) {
+                              onClick={async () => {
+                                if (await showConfirm(`"${doc.title}" 서식을 삭제하시겠습니까?`)) {
                                   deleteDocMutation.mutate(doc.id);
                                 }
                               }}
@@ -4946,8 +5267,8 @@ export default function AdminDashboard() {
                         );
                       })}
                     </div>
-                  )
-                )
+                  ));
+                })()
               ) : (
                 <div className="p-8 text-center text-gray-500">등록된 서식이 없습니다.</div>
               )}
@@ -5088,20 +5409,20 @@ export default function AdminDashboard() {
             <button
               onClick={async () => {
                 if (smsSelectedIds.length === 0) {
-                  alert('수신자를 선택해주세요.');
+                  showAlert('수신자를 선택해주세요.');
                   return;
                 }
                 if (!smsMessage.trim()) {
-                  alert('메시지를 입력해주세요.');
+                  showAlert('메시지를 입력해주세요.');
                   return;
                 }
                 const msgType = new TextEncoder().encode(smsMessage).length > 90 ? 'LMS' : 'SMS';
                 const needed = msgType === 'LMS' ? smsRemain?.LMS_CNT : smsRemain?.SMS_CNT;
                 if (needed != null && needed < smsSelectedIds.length) {
-                  alert(`포인트가 부족합니다.\n${msgType} 잔여 ${needed}건 / 발송 대상 ${smsSelectedIds.length}명\n\n알리고 사이트에서 포인트를 충전해주세요.`);
+                  showAlert(`포인트가 부족합니다.\n${msgType} 잔여 ${needed}건 / 발송 대상 ${smsSelectedIds.length}명\n\n알리고 사이트에서 포인트를 충전해주세요.`);
                   return;
                 }
-                if (!confirm(`${smsSelectedIds.length}명에게 ${msgType}를 발송하시겠습니까?`)) return;
+                if (!await showConfirm(`${smsSelectedIds.length}명에게 ${msgType}를 발송하시겠습니까?`)) return;
                 setSmsSending(true);
                 try {
                   const result = await smsService.sendSms({
@@ -5109,7 +5430,7 @@ export default function AdminDashboard() {
                     message: smsMessage,
                     msg_type: msgType,
                   });
-                  alert(result.message || '발송 완료');
+                  showAlert(result.message || '발송 완료');
                   setSmsMessage('');
                   setSmsSelectedIds([]);
                   queryClient.invalidateQueries({ queryKey: ['smsHistory'] });
@@ -5117,9 +5438,9 @@ export default function AdminDashboard() {
                 } catch (err: any) {
                   const errMsg = err.response?.data?.error || '발송 실패';
                   if (errMsg.includes('포인트') || err.response?.data?.aligo_response?.result_code === '-100') {
-                    alert('포인트가 부족합니다.\n알리고 사이트에서 포인트를 충전해주세요.');
+                    showAlert('포인트가 부족합니다.\n알리고 사이트에서 포인트를 충전해주세요.');
                   } else {
-                    alert(errMsg);
+                    showAlert(errMsg);
                   }
                 } finally {
                   setSmsSending(false);
@@ -5175,8 +5496,8 @@ export default function AdminDashboard() {
                               상세
                             </button>
                             <button
-                              onClick={() => {
-                                if (window.confirm('이 발송 내역을 삭제하시겠습니까?')) {
+                              onClick={async () => {
+                                if (await showConfirm('이 발송 내역을 삭제하시겠습니까?')) {
                                   deleteSmsLogMutation.mutate(log.id);
                                 }
                               }}
@@ -5346,11 +5667,19 @@ export default function AdminDashboard() {
           </div>
         </div>
       )}
+      <ConfirmDialog
+        open={dialogState.open}
+        title={dialogState.title}
+        message={dialogState.message}
+        type={dialogState.type}
+        onConfirm={handleConfirm}
+        onCancel={handleCancel}
+      />
     </div>
   );
 }
 
-function BanForm({ roomId, users, onSuccess }: { roomId: number; users: User[]; onSuccess: () => void }) {
+function BanForm({ roomId, users, onSuccess, showAlert }: { roomId: number; users: User[]; onSuccess: () => void; showAlert: (msg: string, title?: string) => Promise<boolean> }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -5369,9 +5698,9 @@ function BanForm({ roomId, users, onSuccess }: { roomId: number; users: User[]; 
       });
       form.reset();
       onSuccess();
-      alert('제재가 적용되었습니다.');
+      showAlert('제재가 적용되었습니다.');
     } catch {
-      alert('제재 적용에 실패했습니다.');
+      showAlert('제재 적용에 실패했습니다.');
     } finally {
       setIsSubmitting(false);
     }

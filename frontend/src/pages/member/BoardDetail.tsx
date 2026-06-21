@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { boardsService } from '../../services/boards';
 import { useAuthStore } from '../../store/authStore';
 import Loading from '../../components/common/Loading';
+import ConfirmDialog, { useDialog } from '../../components/common/ConfirmDialog';
 
 export default function BoardDetail() {
   const { id } = useParams<{ id: string }>();
@@ -11,6 +12,7 @@ export default function BoardDetail() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [comment, setComment] = useState('');
+  const { dialogState, showConfirm, handleConfirm, handleCancel } = useDialog();
 
   const { data: post, isLoading } = useQuery({
     queryKey: ['post', id],
@@ -40,8 +42,8 @@ export default function BoardDetail() {
     },
   });
 
-  const handleDelete = () => {
-    if (window.confirm('정말 삭제하시겠습니까?')) {
+  const handleDelete = async () => {
+    if (await showConfirm('정말 삭제하시겠습니까?')) {
       deleteMutation.mutate();
     }
   };
@@ -154,6 +156,15 @@ export default function BoardDetail() {
           ))}
         </div>
       </section>
+
+      <ConfirmDialog
+        open={dialogState.open}
+        title={dialogState.title}
+        message={dialogState.message}
+        type={dialogState.type}
+        onConfirm={handleConfirm}
+        onCancel={handleCancel}
+      />
     </div>
   );
 }

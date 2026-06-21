@@ -42,6 +42,7 @@ class IsAuthorOrReadOnly(permissions.BasePermission):
 class AlbumViewSet(viewsets.ModelViewSet):
     """앨범 ViewSet"""
     permission_classes = [permissions.IsAuthenticatedOrReadOnly, IsAuthorOrReadOnly]
+    pagination_class = None
 
     def get_queryset(self):
         queryset = Album.objects.all()

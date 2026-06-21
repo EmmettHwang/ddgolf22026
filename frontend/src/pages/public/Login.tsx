@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { authService } from '../../services/auth';
+import ConfirmDialog, { useDialog } from '../../components/common/ConfirmDialog';
 
 declare global {
   interface Window {
@@ -49,6 +50,7 @@ export default function Login() {
   const { login, isLoading, setUser } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
+  const { dialogState, showAlert, handleConfirm, handleCancel } = useDialog();
 
   const from = location.state?.from?.pathname || '/';
 
@@ -103,7 +105,7 @@ export default function Login() {
 
             // 승인 대기 중인 경우
             if (result.pending_approval) {
-              alert(result.message || '관리자 승인 대기 중입니다. 승인 후 로그인 가능합니다.');
+              showAlert(result.message || '관리자 승인 대기 중입니다. 승인 후 로그인 가능합니다.');
               setGoogleLoading(false);
               return;
             }
@@ -111,7 +113,7 @@ export default function Login() {
             setUser(result.user);
 
             if (result.created) {
-              alert('구글 계정으로 회원가입이 완료되었습니다!');
+              showAlert('구글 계정으로 회원가입이 완료되었습니다!');
             }
 
             navigate(from, { replace: true });
@@ -263,6 +265,15 @@ export default function Login() {
         </div>
 
       </div>
+
+      <ConfirmDialog
+        open={dialogState.open}
+        title={dialogState.title}
+        message={dialogState.message}
+        type={dialogState.type}
+        onConfirm={handleConfirm}
+        onCancel={handleCancel}
+      />
     </div>
   );
 }

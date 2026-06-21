@@ -33,6 +33,7 @@ class DocumentViewSet(viewsets.ModelViewSet):
     queryset = Document.objects.select_related('category', 'thumbnail').prefetch_related('files').all()
     serializer_class = DocumentSerializer
     permission_classes = [IsAdminOrReadOnly]
+    pagination_class = None
     parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get_queryset(self):

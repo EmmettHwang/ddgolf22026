@@ -45,6 +45,7 @@ class IsAdminOrInstructorOrReadOnly(permissions.BasePermission):
 class PublicNoticeViewSet(viewsets.ReadOnlyModelViewSet):
     """공개 공지사항 ViewSet (로그인 불필요)"""
     permission_classes = [permissions.AllowAny]
+    pagination_class = None
 
     def get_queryset(self):
         return Notice.objects.filter(
@@ -68,6 +69,7 @@ class PublicNoticeViewSet(viewsets.ReadOnlyModelViewSet):
 class NoticeViewSet(viewsets.ModelViewSet):
     """회원 공지사항 ViewSet (로그인 필요)"""
     permission_classes = [permissions.IsAuthenticated, IsAdminOrInstructorOrReadOnly]
+    pagination_class = None
 
     def get_queryset(self):
         user = self.request.user

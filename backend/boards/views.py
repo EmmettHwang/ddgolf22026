@@ -20,6 +20,7 @@ class IsAuthorOrReadOnly(permissions.BasePermission):
 class PostViewSet(viewsets.ModelViewSet):
     """게시글 ViewSet"""
     permission_classes = [permissions.IsAuthenticatedOrReadOnly, IsAuthorOrReadOnly]
+    pagination_class = None
 
     def get_queryset(self):
         queryset = Post.objects.all()
@@ -65,6 +66,7 @@ class CommentViewSet(viewsets.ModelViewSet):
     """댓글 ViewSet"""
     serializer_class = CommentSerializer
     permission_classes = [permissions.IsAuthenticatedOrReadOnly, IsAuthorOrReadOnly]
+    pagination_class = None
 
     def get_queryset(self):
         return Comment.objects.filter(post_id=self.kwargs.get('post_pk'))

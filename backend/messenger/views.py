@@ -28,6 +28,7 @@ class IsAdminOrInstructor(permissions.BasePermission):
 class ChatRoomViewSet(viewsets.ModelViewSet):
     """채팅방 ViewSet"""
     permission_classes = [permissions.IsAuthenticated]
+    pagination_class = None
 
     def get_queryset(self):
         user = self.request.user
@@ -758,6 +759,7 @@ class PublicClubListView(APIView):
 class ChatBanViewSet(viewsets.ModelViewSet):
     """채팅 제재 관리 ViewSet (관리자 전용)"""
     permission_classes = [permissions.IsAdminUser]
+    pagination_class = None
     serializer_class = ChatBanSerializer
 
     def get_queryset(self):
@@ -788,6 +790,7 @@ class ClubMembershipRequestViewSet(viewsets.GenericViewSet):
     """클럽 가입/탈퇴 요청 ViewSet"""
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = ClubMembershipRequestSerializer
+    pagination_class = None
 
     def get_queryset(self):
         return ClubMembershipRequest.objects.all()

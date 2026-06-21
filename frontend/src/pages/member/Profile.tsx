@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { authService } from '../../services/auth';
 import { messengerService } from '../../services/messenger';
+import ConfirmDialog, { useDialog } from '../../components/common/ConfirmDialog';
 
 const API_BASE = import.meta.env.VITE_API_URL?.replace('/api', '') || '';
 
@@ -14,6 +15,7 @@ export default function Profile() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { dialogState, showAlert, showConfirm, handleConfirm: handleDialogConfirm, handleCancel: handleDialogCancel } = useDialog();
 
   // 페이지 진입 시 최신 프로필 갱신 (assigned_club 반영)
   useEffect(() => {
@@ -111,7 +113,7 @@ export default function Profile() {
     },
     onError: (err: unknown) => {
       const error = err as { response?: { data?: { error?: string } } };
-      alert(error.response?.data?.error || '가입 요청에 실패했습니다.');
+      showAlert(error.response?.data?.error || '가입 요청에 실패했습니다.');
     },
   });
 
@@ -122,7 +124,7 @@ export default function Profile() {
     },
     onError: (err: unknown) => {
       const error = err as { response?: { data?: { error?: string } } };
-      alert(error.response?.data?.error || '탈퇴 요청에 실패했습니다.');
+      showAlert(error.response?.data?.error || '탈퇴 요청에 실패했습니다.');
     },
   });
 
@@ -136,7 +138,7 @@ export default function Profile() {
     onSuccess: () => {
       logout();
       navigate('/login', { replace: true });
-      alert('계정이 삭제되었습니다.');
+      showAlert('계정이 삭제되었습니다.');
     },
     onError: (err: unknown) => {
       const error = err as { response?: { data?: { error?: string } } };
@@ -153,9 +155,9 @@ export default function Profile() {
     verifyMutation.mutate(verifyPassword);
   };
 
-  const handleProfileSubmit = (e: React.FormEvent) => {
+  const handleProfileSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!window.confirm('프로필을 수정하시겠습니까?')) return;
+    if (!await showConfirm('프로필을 수정하시겠습니까?')) return;
 
     const fd = new FormData();
     fd.append('username', formData.username);
@@ -543,8 +545,8 @@ export default function Profile() {
                       </span>
                     ) : club.is_member ? (
                       <button
-                        onClick={() => {
-                          if (window.confirm(`${club.name} 클럽 탈퇴를 요청하시겠습니까?`)) {
+                        onClick={async () => {
+                          if (await showConfirm(`${club.name} 클럽 탈퇴를 요청하시겠습니까?`)) {
                             leaveClubMutation.mutate(club.id);
                           }
                         }}
@@ -651,6 +653,14 @@ export default function Profile() {
           </div>
         </div>
       )}
+      <ConfirmDialog
+        open={dialogState.open}
+        title={dialogState.title}
+        message={dialogState.message}
+        type={dialogState.type}
+        onConfirm={handleDialogConfirm}
+        onCancel={handleDialogCancel}
+      />
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { useAuthStore } from '../../store/authStore';
 import type { ChatRoom, Message, User } from '../../types';
 import Loading from '../../components/common/Loading';
 import api from '../../services/api';
+import ConfirmDialog, { useDialog } from '../../components/common/ConfirmDialog';
 
 interface BanStatus {
   is_banned: boolean;
@@ -24,6 +25,7 @@ export default function Messenger() {
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showInvitationsModal, setShowInvitationsModal] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { dialogState, showAlert, showConfirm, handleConfirm, handleCancel } = useDialog();
 
   const { data: rooms, isLoading } = useQuery({
     queryKey: ['chatRooms'],
@@ -48,9 +50,9 @@ export default function Messenger() {
       if (error.response?.status === 403) {
         // 제재로 인한 거부 - 제재 상태 새로 조회
         queryClient.invalidateQueries({ queryKey: ['myBanStatus', selectedRoom?.id] });
-        alert(error.response?.data?.error || '채팅이 금지된 상태입니다.');
+        showAlert(error.response?.data?.error || '채팅이 금지된 상태입니다.');
       } else {
-        alert('메시지 전송에 실패했습니다.');
+        showAlert('메시지 전송에 실패했습니다.');
       }
     },
   });
@@ -193,7 +195,7 @@ export default function Messenger() {
       const expiresText = banStatus.expires_at
         ? `\n만료: ${new Date(banStatus.expires_at).toLocaleString()}`
         : '\n만료: 무기한';
-      alert(`채팅이 제한되었습니다.\n\n제재 유형: ${banTypeText}${reasonText}${expiresText}`);
+      showAlert(`채팅이 제한되었습니다.\n\n제재 유형: ${banTypeText}${reasonText}${expiresText}`);
       return;
     }
 
@@ -441,8 +443,8 @@ export default function Messenger() {
                     member.id !== selectedRoom.created_by?.id &&
                     member.id !== selectedRoom.club_leader?.id && (
                       <button
-                        onClick={() => {
-                          if (window.confirm(`${member.username}님을 퇴출하시겠습니까?`)) {
+                        onClick={async () => {
+                          if (await showConfirm(`${member.username}님을 퇴출하시겠습니까?`)) {
                             kickMutation.mutate({
                               roomId: selectedRoom.id,
                               userId: member.id,
@@ -513,6 +515,15 @@ export default function Messenger() {
           </div>
         </Modal>
       )}
+
+      <ConfirmDialog
+        open={dialogState.open}
+        title={dialogState.title}
+        message={dialogState.message}
+        type={dialogState.type}
+        onConfirm={handleConfirm}
+        onCancel={handleCancel}
+      />
     </div>
   );
 }

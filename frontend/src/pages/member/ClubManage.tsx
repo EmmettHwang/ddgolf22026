@@ -4,6 +4,7 @@ import { useAuthStore } from '../../store/authStore';
 import { messengerService } from '../../services/messenger';
 import api from '../../services/api';
 import Loading from '../../components/common/Loading';
+import ConfirmDialog, { useDialog } from '../../components/common/ConfirmDialog';
 import type { ClubImage, User, ChatBan } from '../../types';
 
 type TabType = 'requests' | 'members' | 'bans' | 'info' | 'images';
@@ -26,6 +27,8 @@ export default function ClubManage() {
   // members tab state
   const [memberSearch, setMemberSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
+
+  const { dialogState, showAlert, showConfirm, handleConfirm, handleCancel } = useDialog();
 
 
   // 페이지 진입 시 최신 프로필 갱신 (assigned_club 반영)
@@ -115,7 +118,7 @@ export default function ClubManage() {
     mutationFn: (data: { description: string }) => messengerService.updateClubInfo(clubId!, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['chatRoom', clubId] });
-      alert('클럽 소개글이 수정되었습니다.');
+      showAlert('클럽 소개글이 수정되었습니다.');
     },
   });
 
@@ -123,7 +126,7 @@ export default function ClubManage() {
     mutationFn: (data: FormData) => messengerService.setClubIcon(clubId!, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['chatRoom', clubId] });
-      alert('아이콘이 설정되었습니다.');
+      showAlert('아이콘이 설정되었습니다.');
     },
   });
 
@@ -135,7 +138,7 @@ export default function ClubManage() {
       if (imageInputRef.current) imageInputRef.current.value = '';
     },
     onError: (error: any) => {
-      alert(error.response?.data?.error || '이미지 업로드에 실패했습니다.');
+      showAlert(error.response?.data?.error || '이미지 업로드에 실패했습니다.');
     },
   });
 
@@ -151,7 +154,7 @@ export default function ClubManage() {
       messengerService.updateClubImage(clubId!, imageId, { caption }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clubImages', clubId] });
-      alert('설명이 수정되었습니다.');
+      showAlert('설명이 수정되었습니다.');
     },
   });
 
@@ -160,10 +163,10 @@ export default function ClubManage() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['clubMembers'] });
       queryClient.invalidateQueries({ queryKey: ['availableMembers'] });
-      alert(data.message);
+      showAlert(data.message);
     },
     onError: (error: any) => {
-      alert(error.response?.data?.error || '멤버 추가에 실패했습니다.');
+      showAlert(error.response?.data?.error || '멤버 추가에 실패했습니다.');
     },
   });
 
@@ -171,10 +174,10 @@ export default function ClubManage() {
     mutationFn: (userId: number) => messengerService.removeClubMember(userId),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['clubMembers'] });
-      alert(data.message);
+      showAlert(data.message);
     },
     onError: (error: any) => {
-      alert(error.response?.data?.error || '멤버 삭제에 실패했습니다.');
+      showAlert(error.response?.data?.error || '멤버 삭제에 실패했습니다.');
     },
   });
 
@@ -194,9 +197,9 @@ export default function ClubManage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clubBans', clubId] });
       queryClient.invalidateQueries({ queryKey: ['clubMembers'] });
-      alert('제재가 적용되었습니다.');
+      showAlert('제재가 적용되었습니다.');
     },
-    onError: () => alert('제재 적용에 실패했습니다.'),
+    onError: () => showAlert('제재 적용에 실패했습니다.'),
   });
 
   const unbanMutation = useMutation({
@@ -204,9 +207,9 @@ export default function ClubManage() {
       api.post(`/messenger/rooms/${clubId}/unban/${banId}/`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clubBans', clubId] });
-      alert('제재가 해제되었습니다.');
+      showAlert('제재가 해제되었습니다.');
     },
-    onError: () => alert('제재 해제에 실패했습니다.'),
+    onError: () => showAlert('제재 해제에 실패했습니다.'),
   });
 
   const handleIconUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -226,7 +229,7 @@ export default function ClubManage() {
   const handleAddImage = () => {
     const file = imageInputRef.current?.files?.[0];
     if (!file) {
-      alert('이미지 파일을 선택해주세요.');
+      showAlert('이미지 파일을 선택해주세요.');
       return;
     }
     const formData = new FormData();
@@ -450,8 +453,8 @@ export default function ClubManage() {
                       </span>
                       {canRemoveMember(member) && (
                         <button
-                          onClick={() => {
-                            if (confirm(`${member.username}님을 클럽에서 삭제하시겠습니까?`)) {
+                          onClick={async () => {
+                            if (await showConfirm(`${member.username}님을 클럽에서 삭제하시겠습니까?`)) {
                               removeMemberMutation.mutate(member.id);
                             }
                           }}
@@ -578,8 +581,8 @@ export default function ClubManage() {
                       </div>
                     </div>
                     <button
-                      onClick={() => {
-                        if (confirm('이 제재를 해제하시겠습니까?')) {
+                      onClick={async () => {
+                        if (await showConfirm('이 제재를 해제하시겠습니까?')) {
                           unbanMutation.mutate(ban.id);
                         }
                       }}
@@ -770,8 +773,8 @@ export default function ClubManage() {
                           </button>
                         )}
                         <button
-                          onClick={() => {
-                            if (confirm('이 이미지를 삭제하시겠습니까?')) {
+                          onClick={async () => {
+                            if (await showConfirm('이 이미지를 삭제하시겠습니까?')) {
                               deleteImageMutation.mutate(img.id);
                             }
                           }}
@@ -796,6 +799,15 @@ export default function ClubManage() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={dialogState.open}
+        title={dialogState.title}
+        message={dialogState.message}
+        type={dialogState.type}
+        onConfirm={handleConfirm}
+        onCancel={handleCancel}
+      />
     </div>
   );
 }
