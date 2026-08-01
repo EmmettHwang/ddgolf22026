@@ -7,6 +7,9 @@ export const scheduleService = {
     if (startDate) params.append('start_date', startDate);
     if (endDate) params.append('end_date', endDate);
     const response = await api.get(`/schedule/events/?${params}`);
+    if (Array.isArray(response.data)) {
+      return { count: response.data.length, next: null, previous: null, results: response.data };
+    }
     return response.data;
   },
 
@@ -45,6 +48,9 @@ export const scheduleService = {
   getPublicEvents: async (page = 1): Promise<PaginatedResponse<Event>> => {
     const params = new URLSearchParams({ page: page.toString() });
     const response = await api.get(`/schedule/public/events/?${params}`);
+    if (Array.isArray(response.data)) {
+      return { count: response.data.length, next: null, previous: null, results: response.data };
+    }
     return response.data;
   },
 

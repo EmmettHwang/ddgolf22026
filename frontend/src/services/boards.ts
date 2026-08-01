@@ -4,6 +4,9 @@ import type { Post, Comment, PaginatedResponse } from '../types';
 export const boardsService = {
   getPosts: async (page = 1): Promise<PaginatedResponse<Post>> => {
     const response = await api.get(`/boards/posts/?page=${page}`);
+    if (Array.isArray(response.data)) {
+      return { count: response.data.length, next: null, previous: null, results: response.data };
+    }
     return response.data;
   },
 

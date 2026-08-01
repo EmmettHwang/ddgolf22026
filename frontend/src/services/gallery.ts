@@ -32,6 +32,9 @@ export const galleryService = {
       params.append('category', categoryId.toString());
     }
     const response = await api.get(`/gallery/albums/?${params}`);
+    if (Array.isArray(response.data)) {
+      return { count: response.data.length, next: null, previous: null, results: response.data };
+    }
     return response.data;
   },
 

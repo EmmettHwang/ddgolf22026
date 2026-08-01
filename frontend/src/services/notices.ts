@@ -5,6 +5,9 @@ export const noticesService = {
   // 회원용 공지사항 (로그인 필요)
   getNotices: async (page = 1): Promise<PaginatedResponse<Notice>> => {
     const response = await api.get(`/notices/?page=${page}`);
+    if (Array.isArray(response.data)) {
+      return { count: response.data.length, next: null, previous: null, results: response.data };
+    }
     return response.data;
   },
 
@@ -30,6 +33,9 @@ export const noticesService = {
   // 공개 공지사항 (로그인 불필요)
   getPublicNotices: async (page = 1): Promise<PaginatedResponse<Notice>> => {
     const response = await api.get(`/notices/public/?page=${page}`);
+    if (Array.isArray(response.data)) {
+      return { count: response.data.length, next: null, previous: null, results: response.data };
+    }
     return response.data;
   },
 
