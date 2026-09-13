@@ -144,7 +144,7 @@
         return;
       }
       var amount = plan === 'annual' ? B.annual_fee : B.monthly_fee;
-      AUTHNICE.requestPay({
+      var req = {
         clientId: CFG.client_key,
         method: method,
         orderId: 'ddgolf-' + plan + '-' + Date.now(),
@@ -153,7 +153,18 @@
         mallReserved: 'ddgolf::' + plan,
         returnUrl: location.origin + '/api/server-billing/return',
         fnError: function (r) { alert('결제를 시작하지 못했습니다: ' + (r && r.errorMsg || '')); }
-      });
+      };
+      // ⚠️ 가상계좌는 **예금주명이 필수**다. 없으면 결제창이 아예 안 뜨고
+      //    「[P007] 필수 파라미터 예금주명:vbankHolder가 없습니다」로 막힌다.
+      if (method === 'vbank') {
+        req.vbankHolder = '대덕구골프협회';
+        // ⚠️ 날짜는 **ISO8601(YYYY-MM-DD)** 이어야 한다. YYYYMMDD 로 보내면 [P024] 로 막힌다.
+        var d = new Date(Date.now() + 3 * 864e5);          // 입금 기한 3일
+        req.vbankExpDate = d.getFullYear() + '-'
+          + String(d.getMonth() + 1).padStart(2, '0') + '-'
+          + String(d.getDate()).padStart(2, '0');
+      }
+      AUTHNICE.requestPay(req);
     }
 
     window.addEventListener('message', function (e) {
