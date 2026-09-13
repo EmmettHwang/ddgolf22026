@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>서버이용료 · 대덕구골프협회</title>
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <!--
+    서버이용료 결제 화면 (2026-09-13)
+    ⚠️ React 화면(SPA)이 아니라 **독립된 정적 페이지**다. 요금·결제는 Django 가 아니라
+       호스트의 site-switch 가 맡고, nginx 가 /api/server-billing* 을 그리로 넘긴다.
+       (결제 열쇠를 사이트마다 복사해 두지 않으려고 한 곳에 모았다)
+    ⚠️ 교수오빠 지시(2026-09-13): 「A+B로 해」 = 카드 + 가상계좌. 정기결제는 안 한다.
+  -->
+  <style>
+    :root { --line:#e5e7eb; --muted:#6b7280; --green:#15803d; }
+    * { box-sizing: border-box; }
+    body { margin:0; background:#f9fafb; color:#111827;
+           font-family:system-ui,-apple-system,"Noto Sans KR",sans-serif; line-height:1.6; }
+    .wrap { max-width:760px; margin:0 auto; padding:28px 20px 60px; }
+    .top { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:20px; }
+    .top a { color:var(--muted); text-decoration:none; font-size:14px; }
+    .top a:hover { color:#111827; }
+    h1 { font-size:22px; margin:0 0 4px; }
+    .sub { color:var(--muted); font-size:14px; margin:0 0 22px; }
+    .card { background:#fff; border:1px solid var(--line); border-radius:12px; padding:20px; margin-bottom:16px; }
+    .row { display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:10px; }
+    .fee { font-size:30px; font-weight:800; letter-spacing:-.5px; }
+    .lbl { color:var(--muted); font-size:13px; }
+    .due { text-align:right; }
+    .due b { font-size:19px; }
+    .pill { display:inline-block; font-size:12px; font-weight:700; border-radius:999px;
+            padding:2px 9px; background:#eef2f7; color:#374151; }
+    .pill.warn { background:#fef3c7; color:#92400e; }
+    .pill.bad  { background:#fee2e2; color:#b91c1c; }
+    h2 { font-size:15px; margin:0 0 12px; }
+    .plans { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    @media (max-width:560px) { .plans { grid-template-columns:1fr; } }
+    .plan { border:2px solid var(--line); border-radius:10px; padding:14px 16px; cursor:pointer; background:#fff; text-align:left; }
+    .plan[aria-pressed="true"] { border-color:var(--green); background:#f0fdf4; }
+    .plan .amt { font-size:22px; font-weight:800; margin:2px 0; }
+    .plan .note { font-size:12.5px; color:var(--muted); }
+    .dc { font-size:11.5px; font-weight:700; color:#166534; background:#dcfce7;
+          border-radius:999px; padding:1px 7px; margin-left:6px; }
+    .btns { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:16px; }
+    button.pay { border:0; border-radius:8px; padding:11px 18px; font-size:14.5px; font-weight:700; cursor:pointer; }
+    .card-pay { background:var(--green); color:#fff; }
+    .vbank-pay { background:#fff; color:#111827; border:1px solid #cfd4da !important; }
+    button[disabled] { opacity:.5; cursor:not-allowed; }
+    .hint { font-size:12.5px; color:var(--muted); }
+    table { width:100%; border-collapse:collapse; font-size:14px; }
+    th, td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); }
+    th { color:var(--muted); font-weight:600; font-size:12.5px; }
+    .empty { color:var(--muted); font-size:14px; }
+    .err { background:#fef2f2; border:1px solid #fecaca; color:#b91c1c;
+           border-radius:8px; padding:12px 14px; font-size:14px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <h1>💳 서버이용료</h1>
+      <a href="/admin">← 관리자 화면으로</a>
+    </div>
+    <p class="sub">이 사이트가 돌아가는 서버 이용료입니다. 기한이 지나면 서비스가 중지될 수 있습니다.</p>
+    <div id="body"><p class="empty">불러오는 중…</p></div>
+  </div>
+
+  <script src="https://pay.nicepay.co.kr/v1/js/"></script>
+  <script>
+  (function () {
+    var B = null, CFG = null, plan = 'monthly';
+    function won(n) { return (Number(n) || 0).toLocaleString('ko-KR') + '원'; }
+    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g,
+      function (c) { return ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' })[c]; }); }
+
+    function duePill() {
+      if (B.overdue) return '<span class="pill bad">기한 지남</span>';
+      if (B.days_left === null || B.days_left === undefined) return '<span class="pill">기한 미정</span>';
+      return '<span class="pill' + (B.days_left <= 7 ? ' warn' : '') + '">'
+           + B.days_left + '일 남음</span>';
+    }
+
+    function render() {
+      var payable = CFG && CFG.enabled;
+      document.getElementById('body').innerHTML =
+        '<div class="card"><div class="row">'
+      +   '<div><div class="lbl">월 이용료</div><div class="fee">' + won(B.monthly_fee) + '</div></div>'
+      +   '<div class="due"><div class="lbl">납부 기한</div><b>' + esc(B.paid_until || '미정') + '</b>'
+      +     '<div>' + duePill() + '</div></div>'
+      + '</div></div>'
+
+      + '<div class="card"><h2>결제하기</h2><div class="plans">'
+      +   '<button class="plan" data-plan="monthly" aria-pressed="true">'
+      +     '<div class="lbl">월 결제</div><div class="amt">' + won(B.monthly_fee) + '</div>'
+      +     '<div class="note">매달 청구</div></button>'
+      +   '<button class="plan" data-plan="annual" aria-pressed="false">'
+      +     '<div class="lbl">1년 선결제<span class="dc">' + (B.annual_dc_pct || 0) + '% 할인</span></div>'
+      +     '<div class="amt">' + won(B.annual_fee) + '</div>'
+      +     '<div class="note">' + won((B.monthly_fee || 0) * 12) + ' → ' + won(B.annual_fee)
+      +       ' (' + won(B.annual_save) + ' 절약)</div></button>'
+      + '</div><div class="btns">'
+      +   '<button class="pay card-pay" id="pay-card"' + (payable ? '' : ' disabled') + '>카드로 결제</button>'
+      +   '<button class="pay vbank-pay" id="pay-vbank"' + (payable ? '' : ' disabled') + '>가상계좌 받기</button>'
+      +   '<span class="hint">' + (payable
+            ? '가상계좌는 계좌번호를 받아 입금하는 방식입니다.'
+            : '결제 설정이 아직 준비되지 않았습니다. 서비스 제공자에게 문의해 주세요.') + '</span>'
+      + '</div></div>'
+
+      + '<div class="card"><h2>납부 내역</h2>' + history() + '</div>'
+      + '<p class="hint">문의는 서비스 제공자에게 연락해 주세요.</p>';
+
+      Array.prototype.forEach.call(document.querySelectorAll('.plan'), function (el) {
+        el.onclick = function () {
+          plan = el.getAttribute('data-plan');
+          Array.prototype.forEach.call(document.querySelectorAll('.plan'), function (o) {
+            o.setAttribute('aria-pressed', o === el ? 'true' : 'false');
+          });
+        };
+      });
+      var c = document.getElementById('pay-card'), v = document.getElementById('pay-vbank');
+      if (c) c.onclick = function () { pay('card'); };
+      if (v) v.onclick = function () { pay('vbank'); };
+    }
+
+    function history() {
+      var rows = B.payments || [];
+      if (!rows.length) return '<p class="empty">아직 납부 내역이 없습니다.</p>';
+      var h = '<table><tr><th>날짜</th><th>구분</th><th>금액</th><th>상태</th></tr>';
+      rows.forEach(function (r) {
+        var when = r.at || ((r.year || '') + '-' + String(r.month || '').padStart(2, '0'));
+        h += '<tr><td>' + esc(when) + '</td>'
+           + '<td>' + (r.plan === 'annual' ? '1년' : r.plan === 'monthly' ? '월' : esc(r.memo || '')) + '</td>'
+           + '<td>' + won(r.amount) + '</td>'
+           + '<td>' + (r.status === 'vbankReady' ? '입금 대기' : r.status === 'paid' ? '완료' : esc(r.status || '완료')) + '</td></tr>';
+      });
+      return h + '</table>';
+    }
+
+    function pay(method) {
+      if (!CFG || !CFG.enabled) return;
+      if (typeof AUTHNICE === 'undefined') {
+        alert('결제창을 불러오지 못했습니다. 잠시 뒤 다시 시도해 주세요.');
+        return;
+      }
+      var amount = plan === 'annual' ? B.annual_fee : B.monthly_fee;
+      AUTHNICE.requestPay({
+        clientId: CFG.client_key,
+        method: method,
+        orderId: 'ddgolf-' + plan + '-' + Date.now(),
+        amount: amount,
+        goodsName: '서버이용료 (' + (plan === 'annual' ? '1년' : '1개월') + ')',
+        mallReserved: 'ddgolf::' + plan,
+        returnUrl: location.origin + '/api/server-billing/return',
+        fnError: function (r) { alert('결제를 시작하지 못했습니다: ' + (r && r.errorMsg || '')); }
+      });
+    }
+
+    window.addEventListener('message', function (e) {
+      if (e.data === 'nicepay:success') setTimeout(function () { location.reload(); }, 800);
+    });
+
+    Promise.all([
+      fetch('/api/server-billing').then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); }),
+      fetch('/api/server-billing/pay-config').then(function (r) { return r.ok ? r.json() : { enabled: false }; })
+        .catch(function () { return { enabled: false }; })
+    ]).then(function (a) {
+      B = a[0]; CFG = a[1]; render();
+    }).catch(function () {
+      document.getElementById('body').innerHTML =
+        '<div class="err">요금 정보를 불러오지 못했습니다. 잠시 뒤 다시 시도해 주세요.</div>';
+    });
+  })();
+  </script>
+</body>
+</html>

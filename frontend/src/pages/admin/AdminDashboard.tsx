@@ -1928,6 +1928,21 @@ export default function AdminDashboard() {
               )}
             </button>
           ))}
+          {/* 서버이용료 — 이 사이트가 도는 서버의 이용료(2026-09-13).
+              React 화면이 아니라 별도 정적 페이지라 탭이 아니라 링크로 둔다. */}
+          <a
+            href="/server-billing.html"
+            id="nav-server-billing"
+            className="inline-flex items-center gap-1.5 py-3 px-1 border-b-2 border-transparent font-medium text-xs sm:text-sm whitespace-nowrap text-gray-500 hover:text-gray-700"
+          >
+            서버이용료
+            <span
+              id="server-billing-badge"
+              className="hidden bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center leading-none"
+            >
+              !
+            </span>
+          </a>
         </nav>
       </div>
 
