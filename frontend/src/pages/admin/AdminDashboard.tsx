@@ -338,7 +338,7 @@ function FileDropZone({
   );
 }
 
-type TabType = 'dashboard' | 'members' | 'about' | 'notices' | 'schedule' | 'gallery' | 'messenger' | 'bans' | 'banners' | 'organizations' | 'documents' | 'sms';
+type TabType = 'dashboard' | 'members' | 'about' | 'notices' | 'schedule' | 'gallery' | 'messenger' | 'bans' | 'banners' | 'organizations' | 'documents' | 'sms' | 'billing';
 
 function ClubAssignSelect({
   currentClubId,
@@ -471,11 +471,17 @@ function ClubAssignSelect({
 
 const APP_VERSION = 'v3.7.20260622.0830';
 
+// 문자 발송을 열지 말지. 알리고에 이 협회 발신번호(042-624-7080)가 등록되면 true 로 바꾼다.
+// ⚠️ 한국은 법으로 발신번호를 미리 등록해야 문자가 나간다. 등록 전에는 눌러도 실패만 한다.
+const SMS_READY = false;
+
 export default function AdminDashboard() {
   const { dialogState, showAlert, showConfirm, handleConfirm, handleCancel } = useDialog();
   const [searchParams] = useSearchParams();
   const initialTab = (searchParams.get('tab') as TabType) || 'dashboard';
   const [activeTab, setActiveTab] = useState<TabType>(initialTab);
+  // 유지관리비 화면(iframe)의 높이 — 안쪽에서 postMessage 로 알려 준다
+  const [billingHeight, setBillingHeight] = useState(1400);
   const [showVersionModal, setShowVersionModal] = useState(false);
   const [readmeContent, setReadmeContent] = useState<string | null>(null);
   const [memberFilter, setMemberFilter] = useState<'pending' | 'all'>('pending');
@@ -845,6 +851,19 @@ export default function AdminDashboard() {
       setSmsSelectedIds(smsFilteredUsers.map(u => u.id));
     }
   }, [activeTab, smsClubFilter, smsFilteredUsers.length]);
+
+  // 유지관리비 iframe 이 알려 주는 높이를 받는다
+  useEffect(() => {
+    const onMsg = (e: MessageEvent) => {
+      if (e.origin !== window.location.origin) return;     // 우리 화면에서 온 것만
+      const d: any = e.data;
+      if (d && d.type === 'billing-height' && typeof d.height === 'number') {
+        setBillingHeight(Math.min(4000, Math.max(600, Math.ceil(d.height) + 24)));
+      }
+    };
+    window.addEventListener('message', onMsg);
+    return () => window.removeEventListener('message', onMsg);
+  }, []);
 
   // Documents Queries
   const { data: docCategories, isLoading: docCategoriesLoading } = useQuery({
@@ -1930,19 +1949,24 @@ export default function AdminDashboard() {
           ))}
           {/* 홈페이지유지관리비 — 이 사이트가 도는 서버의 이용료(2026-09-13).
               React 화면이 아니라 별도 정적 페이지라 탭이 아니라 링크로 둔다. */}
-          <a
-            href="/server-billing.html"
+          <button
+            type="button"
             id="nav-server-billing"
-            className="inline-flex items-center gap-1.5 py-3 px-1 border-b-2 border-transparent font-medium text-xs sm:text-sm whitespace-nowrap text-gray-500 hover:text-gray-700"
+            onClick={() => setActiveTab('billing')}
+            className={`inline-flex items-center gap-1.5 py-3 px-1 border-b-2 font-medium text-xs sm:text-sm whitespace-nowrap ${
+              activeTab === 'billing'
+                ? 'border-green-600 text-green-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
           >
-            홈페이지유지관리비
+            홈페이지유지관리
             <span
               id="server-billing-badge"
               className="hidden bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center leading-none"
             >
               !
             </span>
-          </a>
+          </button>
         </nav>
       </div>
 
@@ -5293,8 +5317,56 @@ export default function AdminDashboard() {
       )}
 
       {/* SMS Tab */}
+      {/* 홈페이지유지관리비 — 정적 페이지 하나를 그대로 품는다.
+          ⚠️ React 로 다시 짜면 edenfood 와 두 벌이 되어 고칠 때마다 어긋난다.
+          ⚠️ `?embed=1` 이면 그 페이지가 자기 제목·배경을 감춘다(여기 머리말과 겹친다).
+          ⚠️ 높이는 안쪽에서 postMessage 로 알려 준다(내용에 따라 길이가 다르다). */}
+      {activeTab === 'billing' && (
+        <iframe
+          src="/server-billing.html?embed=1"
+          title="홈페이지유지관리"
+          className="w-full rounded-lg bg-white"
+          style={{ height: billingHeight + 'px', border: 0 }}
+        />
+      )}
+
       {activeTab === 'sms' && (
         <div className="space-y-6">
+          {/* 안내 — 지금은 문자를 보낼 수 없다 (2026-09-15).
+              ⚠️ 알리고에 이 협회 발신번호(042-624-7080)가 등록돼 있지 않다.
+                 한국은 법으로 발신번호를 미리 등록해야 문자가 나간다.
+              아래 내용은 보기만 되고 보내기·충전은 눌러도 동작하지 않는다. */}
+          <div id="sms-disabled-notice" className="bg-amber-50 border border-amber-300 rounded-lg p-5">
+            <div className="flex items-start gap-3">
+              <span className="text-2xl leading-none">⚠️</span>
+              <div className="text-sm text-amber-900 leading-relaxed">
+                <div className="font-bold text-base mb-1">지금은 문자를 보낼 수 없습니다</div>
+                <p className="mb-2">
+                  문자 발송 서비스(알리고)에 <b>이 협회 발신번호가 등록되어 있지 않습니다.</b>
+                  한국은 법으로 발신번호를 미리 등록해야 문자가 나갑니다.
+                </p>
+                <div className="bg-white/70 rounded p-3 mb-2">
+                  <div className="font-semibold mb-1">요금 안내 (2026년 9월 기준 · 알리고)</div>
+                  <ul className="list-disc pl-5 space-y-0.5">
+                    <li><b>5,000건에 55,000원</b> — 건당 11원</li>
+                    <li>이 값은 <b>단문(SMS, 한글 45자·90바이트)</b> 기준입니다.</li>
+                    <li>길어져서 <b>장문(LMS)</b> 이 되면 건당 값이 몇 배가 됩니다.</li>
+                    <li>충전·발신번호 등록은 <b>알리고 홈페이지</b>(smartsms.aligo.in)에서 합니다.</li>
+                  </ul>
+                </div>
+                <p className="text-amber-800">
+                  쓰시려면 알리고에서 <b>발신번호 등록</b>을 먼저 마쳐 주세요.
+                  등록이 끝나면 이 화면이 다시 열립니다.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* 아래는 발신번호가 등록될 때까지 **감춘다**.
+              ⚠️ 흐리게만 두면 회원 전화번호와 발송 내역이 그대로 읽힌다.
+                 등록이 끝나면 위의 SMS_READY 를 true 로 바꾸면 그대로 돌아온다. */}
+          <div className={SMS_READY ? '' : 'hidden'}>
+            <fieldset disabled={!SMS_READY} className="space-y-6">
           {/* 가격표 */}
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex justify-between items-center mb-4">
@@ -5530,6 +5602,8 @@ export default function AdminDashboard() {
             ) : (
               <div className="text-center text-gray-500 py-8">발송 내역이 없습니다.</div>
             )}
+          </div>
+            </fieldset>
           </div>
         </div>
       )}

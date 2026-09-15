@@ -62,8 +62,32 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
 
 class CustomTokenObtainPairView(TokenObtainPairView):
-    """커스텀 로그인 뷰 - 승인된 사용자만 로그인 가능"""
+    """커스텀 로그인 뷰 - 승인된 사용자만 로그인 가능
+
+    ⚠️ 로그인 실패 제한을 여기서 건다 (2026-09-15).
+       시리얼라이저는 실패 갈래가 여럿이라 한 군데씩 손대면 반드시 빠뜨린다.
+       뷰에서 **응답을 보고** 판단한다.
+    """
     serializer_class = CustomTokenObtainPairSerializer
+
+    def post(self, request, *args, **kwargs):
+        from . import login_guard
+        left = login_guard.blocked_for(request)
+        if left:
+            # ⚠️ 어떤 아이디가 있는지 알려 주지 않는다 — 문구를 바꾸지 않는다.
+            return Response(
+                {'detail': '로그인 시도가 너무 많습니다. %d초 뒤에 다시 해 주세요.' % left},
+                status=429)
+        try:
+            resp = super().post(request, *args, **kwargs)
+        except Exception:
+            login_guard.record_fail(request)
+            raise
+        if resp.status_code >= 400:
+            login_guard.record_fail(request)
+        elif resp.status_code < 300:
+            login_guard.record_ok(request)
+        return resp
 
 
 class SendVerificationCodeView(APIView):

@@ -102,7 +102,20 @@
     show(b);
   }
 
-  function start() { setTimeout(check, 1500); }
+  /* ⚠️ 이 화면은 SPA 다. 로그인해도 **페이지가 새로 열리지 않는다** —
+   *    처음 한 번만 확인하면 그때는 아직 로그인 전이라 팝업이 영영 안 뜬다
+   *    (2026-09-15 에 실제로 그랬다. edenfood 는 로그인 때 페이지가 새로 열려서 됐다).
+   *    그래서 **토큰이 생길 때까지** 잠깐 지켜보다가 한 번만 확인한다. */
+  function waitForLogin() {
+    var tries = 0;
+    (function look() {
+      if (token()) { check(); return; }        // 로그인됐다 → 확인하고 끝
+      if (++tries > 60) return;                // 2분 지켜보고 그만둔다
+      setTimeout(look, 2000);
+    })();
+  }
+
+  function start() { setTimeout(waitForLogin, 1200); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
   else start();
 })();

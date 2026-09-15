@@ -47,7 +47,15 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       workbox: {
-        navigateFallbackDenylist: [/^\/api/, /^\/media/, /^\/ws/],
+        // ⚠️ 유지관리비 화면·안내 스크립트는 **미리 저장하지 않는다** (2026-09-15).
+        //    서비스워커가 이 둘을 품고 있으면, 서버에 새 파일을 올려도 앱 안에서는
+        //    영영 옛것이 나온다. 실제로 그래서 화면이 비어 보였다.
+        //    (이름이 고정된 파일이라 더 위험하다 — /assets/ 것들은 이름이 매번 바뀐다)
+        globIgnores: ['**/server-billing.html', '**/server-billing-notice.js'],
+        // ⚠️ `/server-billing.html` 은 **React 화면이 아니다.** 여기 안 적으면 서비스워커가
+        //    이 주소마저 앱 화면(index.html)으로 돌려줘서, 탭 안에서 빈 화면이 된다
+        //    (2026-09-15: React Router 가 «No routes matched» 경고를 내며 아무것도 안 그렸다).
+        navigateFallbackDenylist: [/^\/api/, /^\/media/, /^\/ws/, /^\/server-billing/],
         cleanupOutdatedCaches: true,
         skipWaiting: true,
         clientsClaim: true,
