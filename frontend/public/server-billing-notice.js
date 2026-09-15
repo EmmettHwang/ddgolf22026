@@ -1,4 +1,4 @@
-/* 서버이용료 안내 팝업 — ddgolf (2026-09-13)
+/* 홈페이지유지관리비 안내 팝업 — ddgolf (2026-09-13)
  *
  * 교수오빠 지시: 「관리자 로그인 하면 결제가 필요하면 팝업 띄워서 결제 화면으로」
  *
@@ -39,7 +39,7 @@
     + 'box-shadow:0 20px 60px rgba(0,0,0,.35);font-family:system-ui,-apple-system,sans-serif">'
     +   '<div style="padding:18px 22px;background:' + (overdue ? '#c5221f' : '#a15c00') + ';color:#fff">'
     +     '<b style="font-size:17px">'
-    +       (overdue ? '서버이용료 납부 기한이 지났습니다' : '서버이용료 납부 기한이 다가옵니다')
+    +       (overdue ? '홈페이지유지관리비 납부 기한이 지났습니다' : '홈페이지유지관리비 납부 기한이 다가옵니다')
     +     '</b>'
     +   '</div>'
     +   '<div style="padding:22px">'
