@@ -231,8 +231,8 @@ export default function Privacy() {
                     <td className="border border-gray-300 px-4 py-2">대덕구골프협회</td>
                   </tr>
                   <tr>
-                    <td className="border border-gray-300 px-4 py-2 bg-gray-50 font-medium">대표 / 개인정보보호책임자</td>
-                    <td className="border border-gray-300 px-4 py-2">협회장</td>
+                    <td className="border border-gray-300 px-4 py-2 bg-gray-50 font-medium">개인정보보호책임자</td>
+                    <td className="border border-gray-300 px-4 py-2">이현웅</td>
                   </tr>
                   <tr>
                     <td className="border border-gray-300 px-4 py-2 bg-gray-50 font-medium">전화</td>
